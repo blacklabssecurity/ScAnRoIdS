@@ -17,6 +17,86 @@ def handle_scan_logic(choice, DEFAULT_IFACE, LOCAL_IPS, BASE_DIR, CUSTOMER, DATE
     nmap_out_base = os.path.join(BASE_DIR, f"{file_prefix}_discovery")
     exclude_flag = f"--exclude {LOCAL_IPS}" if LOCAL_IPS else ""
     perf_switches = ""
+
+def execute_firewalk(target_ip):
+    """Multi-stage logic to determine TTL and execute firewalking."""
+    print(f"{BLUE}[*] Stage 1:{RESET} Determining Hop Count to {target_ip}...")
+    dashboard_data['status'] = "Scanning (Stage 1: Traceroute)..."
+    dashboard_data['meta_cmd'] = f"Firewalk Stage 1: Traceroute {target_ip}"
+
+    # Stage 1: Get Traceroute Data
+    trace_cmd = f"nmap -sn --traceroute {target_ip}"
+    proc = subprocess.run(trace_cmd, shell=True, capture_output=True, text=True)
+
+    # Find the highest hop number using regex
+    hops = re.findall(r"^\s+(\d+)\s+[\d\.]+\s+.*$", proc.stdout, re.MULTILINE)
+
+    if not hops:
+        # OPTIMIZATION: Check if target is on the same subnet
+        print("{YELLOW}[!]{RESET} No intermediate hops detected. Checking local connectivity...")
+        # If we can ping it but there are no hops, it's likely on the same segment
+        if "Host is up" in proc.stdout:
+            msg = f"{YELLOW}[*]{RESET} Target {target_ip} appears to be on the SAME SUBNET (0 hops). Firewalking is not applicable."
+            print(msg)
+            live_logs.append(msg)
+            dashboard_data['status'] = "SKIPPED (Local Target)"
+            return
+        else:
+            msg = "{RED}[!] Error:{RESET} Target unreachable or traceroute failed."
+            print(msg)
+            live_logs.append(msg)
+            dashboard_data['status'] = "FAILED (Traceroute Error)"
+            return
+
+    # Calculate TTL (Hop + 1)
+    target_ttl = int(hops[-1]) + 1
+    fire_msg = f"Firewall detected at hop {hops[-1]}. Testing TTL {target_ttl}."
+    print(f"{GREEN}[+]{RESET} {fire_msg}")
+    live_logs.append(f"[*] {fire_msg}")
+
+    # Stage 2: Execute the actual Firewalk scan
+    dashboard_data['status'] = f"Scanning (Stage 2: Firewalk TTL {target_ttl})..."
+    fire_cmd = f"nmap -Pn --ttl {target_ttl} --script firewalk --script-args=firewalk.max-retries=1 {target_ip} --reason"
+
+    # Update dashboard to show current command
+    dashboard_data['meta_cmd'] = fire_cmd
+
+    # Call your standard engine to handle the live logs and final parsing
+    run_scan("12", fire_cmd, "", "", f"{CUSTOMER}_{DATE_STR}_firewalk")
+
+    # Post-Scan Analysis for Success vs. Filtered vs. Closed
+    # Ensure we are looking for the file run_scan actually created:
+    xml_file_to_check = os.path.join(BASE_DIR, f"{CUSTOMER}_{DATE_STR}_firewalk_discovery.xml")
+    if os.path.exists(xml_file_to_check):
+        found_open = False
+        try:
+            # 1. Surgical check for OPEN ports (Success)
+            tree = ET.parse(xml_file_to_check)
+            root = tree.getroot()
+            for port in root.findall(".//port"):
+                state_node = port.find('state')
+                if state_node is not None and state_node.get('state') == 'open':
+                    found_open = True
+                    break
+            
+            # 2. Update Dashboard with the findings
+            if found_open:
+                msg = "SUCCESS: [OPEN] Firewall is LEAKING traffic at this TTL!"
+                dashboard_data['status'] = f"FINISHED ({msg})"
+                live_logs.append(f"{GREEN}[+]{RESET} {msg}")
+            else:
+                # Fallback to check for Filtered/Blocked if nothing was open
+                with open(xml_file_to_check, 'r') as f:
+                    xml_content = f.read()
+                    if "filtered" in xml_content or "no-response" in xml_content:
+                        dashboard_data['status'] = "FINISHED (WARNING: [FILTERED] Firewall Dropping Packets)"
+                    else:
+                        dashboard_data['status'] = "FINISHED (No Open Paths Found)"
+            dashboard_data['scan_active'] = False
+        except Exception as e:
+            print(f"{RED}[!] WARNING:{RESET} Error analyzing Firewalk XML: {e}")
+            dashboard_data['status'] = "FINISHED (Analysis Error)"
+
     
     # --- 1. TARGET CONSOLIDATION LOGIC ---
     if choice in ["03", "06", "07"]:
