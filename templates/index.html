@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ScanRoidS Dashboard</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        h1 { border-bottom: 2px solid #00ff41; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #111; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: left; }
+        
+        /* Header Styling for Sorting */
+        th { background: #222; cursor: pointer; position: relative; transition: 0.3s; }
+        th:hover { background: #333; color: #ffff00; }
+        th::after { content: ' ↕'; font-size: 0.8em; color: #555; }
+        .ips-alert { color: #ff9900 !important; font-weight: bold; animation: ips-pulse 1s infinite; border: 2px solid #ff9900; padding: 2px 10px; border-radius: 5px; background: #331a00; }
+        @keyframes ips-pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1); } }
+        .interesting { color: #ff3333 !important; font-weight: bold; animation: pulse 1.5s infinite; }
+        .dc-pulse { color: #00ffff !important; font-weight: bold; animation: dc-pulse-anim 1.5s infinite; border: 1px solid #00ffff; padding: 2px 5px; border-radius: 3px; }
+        @keyframes dc-pulse-anim { 0% { box-shadow: 0 0 2px #00ffff; opacity: 1; } 50% { box-shadow: 0 0 15px #00ffff; opacity: 0.5; } 100% { box-shadow: 0 0 2px #00ffff; opacity: 1; } }
+        .status-dot { height: 12px; width: 12px; background-color: #00ff41; border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 8px #00ff41; }
+        .offline { background-color: #ff3333 !important; box-shadow: 0 0 8px #ff3333 !important; }
+    </style>
+</head>
+<body>
+    <h1>| - S - c - A - n - R - o - I - d - S - |</h1>
+    <div style="display: flex; gap: 30px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 10px;">
+        <p style="margin: 0;">
+            <span id="health-dot" class="status-dot"></span>
+            <strong>Customer:</strong> {{ customer }}
+        </p>
+        <p style="margin: 0;"><strong>TARGETS FOUND:</strong> <span style="color: #ffff00; font-size: 1.2em;">{{ host_count }}</span></p>
+        <p style="margin: 0;"><strong>SERVICES DISCOVERED:</strong> <span style="color: #00ffff; font-size: 1.2em;">{{ service_count }}</span></p>
+        <p style="margin: 0;"><strong>JUICY TARGET:</strong> <span style="color: #ff3333; font-size: 1.2em; animation: pulse 1.5s infinite;">{{ juicy_target }}</span></p>
+        {% if dc_found %}
+            <p style="margin: 0;"><span class="dc-pulse">!!! {{ dc_display }} !!!</span></p>
+            <p style="margin: 0; padding-left: 10px;">
+                <span style="color: #ff4d4d; font-weight: bold; border: 1px solid #ff4d4d; padding: 2px 8px; border-radius: 3px; animation: pulse 1.5s infinite;">
+                    [ SUGGESTION: RUN SHARPHOUND / BLOODHOUND.PY ]
+                </span>
+            </p>
+            <p style="margin: 0; color: #ff00ff; font-weight: bold; border-left: 3px solid #ff00ff; padding-left: 10px; margin-left: 10px;">
+               SID: <span id="sid-val" style="background: #222; padding: 0 5px;">{{ domain_sid }}</span>
+               <button onclick="copySID()" style="background: #333; color: #ff00ff; border: 1px solid #ff00ff; cursor: pointer; font-size: 0.7em; margin-left: 10px; padding: 1px 4px; border-radius: 3px;">COPY</button>
+               <span id="sid-copy-msg" style="color: #ffff00; font-size: 0.7em; margin-left: 5px; display: none;">Copied!</span>
+            </p>
+            <p style="margin: 0; color: #ff00ff; font-weight: bold; border-left: 3px solid #ff00ff; padding-left: 10px; margin-left: 10px;">
+               SID: <span id="sid-val" style="background: #222; padding: 0 5px;">{{ domain_sid }}</span>
+            </p>
+        {% endif %}
+        {% if ips_blocked %}
+            <p style="margin: 0;"><span class="ips-alert"> IDS/IPS ALERT: ADMIN-PROHIBITED DETECTED </span></p>
+        {% endif %}
+        <p style="margin: 0;"><strong>Gowitness GALLERY:</strong> 
+            {% if visual_recon_live %}
+                <a href="http://{{ request.host.split(':')[0] }}:8889" target="_blank" style="color: #ff00ff; font-weight: bold; border: 1px solid #ff00ff; padding: 2px 8px; border-radius: 3px; text-decoration: none;">
+                    [ OPEN GALLERY ]
+                </a>
+            {% else %}
+                <span style="color: #444; border: 1px solid #444; padding: 2px 8px; border-radius: 3px;">[ NO WEB TARGETS ]</span>
+            {% endif %}
+        </p>
+        <p style="margin: 0;">
+            <strong>EXPLOITS:</strong> 
+            {% if exploits_found %}
+                <a href="/artifacts/{{ sploit_file }}" target="_blank" style="color: #ff3333; font-weight: bold; text-decoration: none; border: 1px solid #ff3333; padding: 2px 8px; border-radius: 3px;">
+                    [ VIEW POTENTIAL EXPLOITS ]
+                </a>
+            {% else %}
+                <span style="color: #444; border: 1px solid #444; padding: 2px 8px; border-radius: 3px;">[ NO POTENTIAL EXPLOITS ]</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <p style="margin: 0;">
+    <strong>SCAN PHASE:</strong> 
+        <span style="color: #00ffff; font-weight: bold; border: 1px solid #00ffff; padding: 2px 6px; border-radius: 3px;">
+            {{ phase_info }}
+        </span>
+    </p>
+    <p><strong>STATUS:</strong>
+        <span id="status-text" class="{{ 'scan-pulse' if 'Scanning' in status else '' }}">{{ status }}</span>
+    </p>
+    <p><strong>ARTIFACTS:</strong> {{ path }}</p>
+    {% if smb_enum_complete %}
+    <p style="margin: 0;">
+        <span style="color: #00ff41; border: 2px solid #00ff41; padding: 2px 8px; border-radius: 3px; font-weight: bold;">
+            [ SMB ENUM COMPLETE ]
+        </span>
+    </p>
+    {% endif %}
+    <div style="background: #000; border: 1px solid #444; padding: 15px; margin-bottom: 20px; font-family: monospace;">
+        <h3 style="margin-top: 0; color: #ffff00; font-size: 0.9em; border-bottom: 1px solid #333; padding-bottom: 5px;">
+            >_ SESSION INFO
+        </h3>
+
+        <!-- Static Header Entries -->
+        <div style="color: #00ffff; margin-bottom: 10px; font-size: 0.85em; position: relative;">
+            <div><strong>OPERATOR:</strong> {{ meta_user }}</div>
+            <div><strong>START TIME:</strong> {{ meta_time }}</div>
+            <div style="word-break: break-all; margin-top: 5px;">
+                <strong>SYNTAX:</strong> <span id="nmap-cmd">{{ meta_cmd }}</span>
+                <button onclick="copyCmd()" style="background: #333; color: #00ff41; border: 1px solid #00ff41; cursor: pointer; font-size: 0.7em; margin-left: 10px; padding: 2px 5px;">COPY</button>
+                <span id="copy-msg" style="color: #ffff00; font-size: 0.7em; margin-left: 5px; display: none;">Copied!</span>
+            </div>
+
+        <!-- NEW: CRITICAL FINDINGS (TOP 3 CVEs) -->
+        <div style="margin-bottom: 10px; font-size: 0.85em; border-top: 1px solid #333; padding-top: 10px;">
+            <strong style="color: #ff3e3e;">CRITICAL FINDINGS:</strong>
+            {% if top_cves and top_cves|length > 0 %}
+                {% for cve, count in top_cves %}
+                    <a href="{{ 'https://www.exploit-db.com' + cve.split(' ')[1] if 'EDB-ID' in cve else 'https://nvd.nist.gov' + cve }}" 
+                       target="_blank"
+                       title="Matches: {{ count }} - Click for Research" 
+                       style="text-decoration: none; color: #ff3e3e; margin-left: 10px; font-weight: bold; border: 1px solid #ff3e3e; padding: 2px 6px; border-radius: 3px; background: rgba(255, 62, 62, 0.1);">
+                        {{ cve }}
+                    </a>
+                {% endfor %}
+            {% else %}
+                <span style="color: #666; margin-left: 10px;">Monitoring...</span>
+            {% endif %}
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed #333;">
+
+        <!-- 1. Rolling Live Logs -->
+        <div id="console-out" style="font-size: 0.85em; color: #888; max-height: 350px; overflow-y: auto; background: #050505; padding: 10px; border-radius: 5px; display: flex; flex-direction: column;">
+            {% for line in logs %}
+                <div style="line-height: 1.4; border-left: 2px solid #333; padding-left: 8px; margin-bottom: 2px;">
+                    {{ line }}
+                </div>
+            {% endfor %}
+        </div>
+    </div> <!-- End of Session Info Div -->
+
+    <p style="margin-top:40px; color: #888;">*** Columns can be sorted after Phase 1 completes ***</p>
+    
+    <table>
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Host</th>
+                <th onclick="sortTable(1)">OS</th>
+                <th onclick="sortTable(2)">Port</th>
+                <th onclick="sortTable(3)">Service</th>
+                <th onclick="sortTable(4)">Reason</th>
+                <th onclick="sortTable(5)">TTL</th>
+                <th>Artifacts</th>
+            </tr>
+        </thead>
+        <tbody id="results-body">
+            {% for row in results %}
+            <tr class="{{ row.css_class }}">
+                <td>{{ row.host }}</td>
+                <td class="{{ 'dc-pulse' if 'dc-pulse' in row.css_class else '' }}">{{ row.os or 'Unknown' }}</td>
+                <td>{{ row.port }}</td>
+                <td>
+                    {{ row.service }}
+                    {% if row.suggestion and row.suggestion != "Standard service audit recommended." %}
+                        <span onclick="copyCmd('{{ row.suggestion }}')" 
+                              title="Tactical Suggestion: {{ row.suggestion }}" 
+                              style="cursor: pointer; color: #ffff00; margin-left: 8px; font-weight: bold; border: 1px solid #444; padding: 0 4px; border-radius: 3px; font-size: 0.8em;">
+                              ⚡
+                        </span>
+                    {% endif %}
+                </td>
+                <td>{{ row.reason }}</td>
+                <td data-sort="{{ row.raw_ttl }}">{{ row.ttl_display }}</td>
+                <td>
+                    {% if row.port != "N/A" %}
+                        <a href="/artifacts/{{ row.clean_svc_port }}/hosts_all.txt"
+                            target="_blank" 
+                            style="color: #00ffff; text-decoration: none; border: 1px solid #00ffff; padding: 2px 5px; border-radius: 3px; font-size: 0.8em;">
+                            [ VIEW HOSTS ]
+                        </a>
+                    {% else %}
+                        <span style="color: #444;">--</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="margin-top:40px; color: #888;">*** Press Ctrl+C in terminal to exit and stop dashboard ***</p>
+
+    <script>    
+        // 1. GLOBALS
+        let heartbeat = setInterval(updateDashboard, 3000);
+        let currentSortCol = null;
+
+        // 2. UTILITIES (Copy & Scroll)
+        // Function to keep the console at the bottom
+        function scrollToBottom() {
+            var consoleDiv = document.getElementById("console-out");
+            if (consoleDiv) {
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+        }
+
+        // Initial scroll on load
+        window.onload = function() {
+            scrollToBottom();
+        };
+        
+        function copyCmd(text = null) {
+            // 1. Determine what to copy: The passed string OR the header command ID
+            const cmdText = text ? text : document.getElementById('nmap-cmd').innerText;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = cmdText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                
+                // 2. Feedback: Use the header span for the main cmd, or an alert for tactical
+                if (!text) {
+                    const msg = document.getElementById('copy-msg');
+                    msg.style.display = 'inline';
+                    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+                } else {
+                    // Visual confirmation for the Tactical Bolt [⚡]
+                    console.log("Tactical Command Copied: " + text);
+                    // Optional: swap alert() for a small toast if you want it quieter
+                    alert("Tactical Command Copied:\n" + text);
+                }
+            } catch (err) { 
+                console.error('Unable to copy', err); 
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        function copySID() {
+            const sidText = document.getElementById('sid-val').innerText;
+            if (sidText === "NOT YET CAPTURED" || sidText === "SEARCHING...") return;
+
+            const textArea = document.createElement("textarea");
+            textArea.value = sidText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                const msg = document.getElementById('sid-copy-msg');
+                msg.style.display = 'inline';
+                setTimeout(() => { msg.style.display = 'none'; }, 2000);
+            } catch (err) { console.error('Unable to copy SID', err); }
+            document.body.removeChild(textArea);
+        }
+        
+        function applyPersistentSort(n) {
+            let table = document.querySelector("table");
+            let tbody = document.getElementById('results-body');
+            let rows = Array.from(tbody.rows);
+            let isAscending = table.getAttribute('data-sort-dir') === 'desc'; // Use current state
+
+            let sortedRows = rows.sort((rowA, rowB) => {
+                let cellA = rowA.cells.getAttribute('data-sort') || rowA.cells.innerText.trim();
+                let cellB = rowB.cells.getAttribute('data-sort') || rowB.cells.innerText.trim();
+                if (!isNaN(cellA) && !isNaN(cellB)) return isAscending ? cellA - cellB : cellB - cellA;
+                return isAscending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+            });
+            sortedRows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function sortTable(n) { currentSortCol = n;
+            let table = document.querySelector("table");
+            let tbody = document.getElementById('results-body');
+            let rows = Array.from(tbody.rows);
+            let isAscending = table.getAttribute('data-sort-dir') === 'asc';
+
+            let sortedRows = rows.sort((rowA, rowB) => {
+                // --- UPDATED LOGIC: Get data-sort attribute OR innerText ---
+                let cellA = rowA.cells[n].getAttribute('data-sort') || rowA.cells[n].innerText.trim();
+                let cellB = rowB.cells[n].getAttribute('data-sort') || rowB.cells[n].innerText.trim();
+
+                // Handle numeric sorting (Ports, TTLs, Reason)
+                if (!isNaN(cellA) && !isNaN(cellB) && cellA !== "" && cellB !== "") {
+                    return isAscending ? cellA - cellB : cellB - cellA;
+                }
+
+                // Handle string sorting (OS, Service, Host)
+                return isAscending 
+                    ? cellA.localeCompare(cellB, undefined, {numeric: true}) 
+                    : cellB.localeCompare(cellA, undefined, {numeric: true});
+             });
+
+            table.setAttribute('data-sort-dir', isAscending ? 'desc' : 'asc');
+            sortedRows.forEach(row => tbody.appendChild(row));
+        }
+        
+        // 3. INITIALIZATION
+        window.onload = function() { scrollToBottom(); };
+
+        // 4. THE MASTER HEARTBEAT (Consolidated)
+        function updateDashboard() {
+            fetch('/api/status')
+                .then(response => {
+                    const dot = document.getElementById('health-dot');
+                    if(response.ok) { dot.classList.remove('offline'); return response.json(); }
+                    throw new Error('Offline');
+                })
+                .then(data => {
+                    // 1. Update Global Metrics
+                    document.getElementById('status-text').innerText = data.status;
+              
+                    // 2. REBUILD THE TABLE BODY (The "Live" Fix)
+                    const tbody = document.getElementById('results-body');
+                    if (tbody && data.results) {
+                        let newHtml = "";
+                        data.results.forEach(row => {
+                        // 1. TACTICAL BOLT LOGIC (Keep it synced with JS)
+                        let boltHtml = "";
+                        if (row.suggestion && row.suggestion !== "Standard service audit recommended.") {
+                            boltHtml = `<span onclick="copyCmd('${row.suggestion}')" title="Tactical: ${row.suggestion}" style="cursor: pointer; color: #ffff00; margin-left: 8px; font-weight: bold; border: 1px solid #444; padding: 0 4px; border-radius: 3px; font-size: 0.8em;">⚡</span>`;
+                        }
+                        
+                        // 2. REBUILD THE ROW (7 COLUMNS TOTAL)
+                        newHtml += `
+                            <tr class="${row.css_class || ''}">
+                                <td>${row.host}</td>
+                                <td class="${row.css_class === 'dc-pulse' ? 'dc-pulse' : ''}">${row.os || 'Unknown'}</td>
+                                <td style="color: #ffff00;">${row.port}</td>
+                                <td>${row.service} ${boltHtml}</td>
+                                <td>${row.reason || 'syn-ack'}</td>
+                                <td>${row.ttl_display || 'N/A'}</td>
+                                <td>
+                                    ${row.clean_svc_port ? 
+                                        `<a href="/artifacts/${row.clean_svc_port}/hosts_all.txt" target="_blank" style="color: #00ffff; text-decoration: none; border: 1px solid #00ffff; padding: 2px 5px; border-radius: 3px; font-size: 0.8em;">[ VIEW HOSTS ]</a>` : 
+                                        `<span style="color:#444">--</span>`
+                                    }
+                                </td>
+                            </tr>`;
+                        });
+
+                        tbody.innerHTML = newHtml;
+                        
+                        // --- THE PERSISTENT SORT FIX ---
+                        // If the operator has clicked a column, re-sort the new data immediately
+                        if (currentSortCol !== null) {
+                            // We reuse your existing sortTable logic
+                            // But we pass 'false' to prevent toggling the direction (keep current)
+                            applyPersistentSort(currentSortCol);
+                    }
+                    
+                    // --- 2.5 REBUILD THE LOG CONSOLE (The Log-Stream Fix) ---
+                    const logBox = document.getElementById('console-out');
+                    if (logBox && data.logs) {
+                        let logHtml = "";
+                        data.logs.forEach(line => {
+                            logHtml += `<div style="line-height: 1.4; border-left: 2px solid #333; padding-left: 8px; margin-bottom: 2px;">${line}</div>`;
+                        });
+                        logBox.innerHTML = logHtml;
+                    }
+
+                    // ... other updates (exploits_found, etc.) ...
+                    if (data.exploits_found === true) {
+                        const btn = document.getElementById('exploit-link');
+                        if (btn) {
+                            btn.style.display = 'inline-block';
+                            // Update the link to the actual file path
+                            btn.href = `/artifacts/${data.sploit_file}`;
+                        }
+                    }
+                    
+                    // 3. Scroll and Check for Completion
+                    scrollToBottom(); 
+                    if (data.scan_active === false) {
+                        console.log("[*] Scan Engine Finalized. Stopping Heartbeat...");
+                        
+                        // 1. Final UI Polish
+                        const statusBox = document.getElementById('status-text');
+                        if (statusBox) {
+                            statusBox.style.color = "#00ff41";
+                            statusBox.innerText = "SESSION COMPLETE";
+                        }
+                        
+                        // Stop the health-dot from flashing
+                        document.getElementById('health-dot').style.boxShadow = "none";
+                       
+                        // 2. Kill the ghost heartbeat
+                        clearInterval(heartbeat); 
+                        
+                        // 3. One final reload to ensure all artifacts and logs are flushed
+                        setTimeout(() => { location.reload(); }, 2000); 
+                    }
+                })
+                .catch(() => { document.getElementById('health-dot').classList.add('offline'); });
+        }
+
+    </script>
+</body>
+</html>
