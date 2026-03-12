@@ -33,7 +33,7 @@
         .btn-tool:hover { background: rgba(255,255,255,0.1); transform: scale(1.05); }
 
         /* Visualizer Container */
-        #network-viz { width: 100%; height: 400px; background: #050505; border: 1px solid #333; margin-top: 20px; display: none; }
+        #network-viz { width: 100%; height: 600px; background: #050505; border: 1px solid #333; margin-top: 20px; display: none; }
         
         /* Toast Notification */
         #toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: #ffff00; padding: 10px 20px; border: 1px solid #ffff00; display: none; z-index: 1000; }
@@ -173,12 +173,117 @@
             toast.style.display = 'block';
             setTimeout(() => toast.style.display = 'none', 2000);
         }
-
-        function toggleViz() {
-            let viz = document.getElementById('network-viz');
-            viz.style.display = (viz.style.display === 'none') ? 'block' : 'none';
-            // Placeholder: Initialize Cytoscape here using data.results
+        // --- 5. NETWORK VISUALIZER ENGINE (
+		Cytoscape.js
+		) ---
+        let cy = null; // Global graph instance
+        
+        function initVisualizer(results) {
+            const vizContainer = document.getElementById('network-viz');
+            
+            // 1. Prepare Elements (Nodes & Edges)
+            let elements = [
+                { data: { id: 'scanner', label: 'SCANNER', type: 'root' } } // Central Hub
+            ];
+        
+            results.forEach(row => {
+                // Only add unique hosts to the graph
+                if (!elements.find(e => e.data.id === row.host)) {
+                    // Determine Node Color based on OS
+                    let nodeColor = '#00ff41'; // Default Green
+                    if (row.os.includes('Windows')) nodeColor = '#00ffff'; // Blue
+                    if (row.os.includes('DC')) nodeColor = '#ff00ff'; // Pink/Purple
+        
+                    // Add Node
+                    elements.push({
+                        data: { 
+                            id: row.host, 
+                            label: row.host, 
+                            hops: row.raw_ttl ? (calculateHops(row.raw_ttl)) : 5,
+                            color: nodeColor
+                        }
+                    });
+        
+                    // Add Edge from Scanner to Target
+                    elements.push({
+                        data: { id: `edge-${row.host}`, source: 'scanner', target: row.host }
+                    });
+                }
+            });
+        
+            // 2. Initialize Cytoscape
+            cy = cytoscape({
+                container: vizContainer,
+                elements: elements,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': 'data(color)',
+                            'label': 'data(label)',
+                            'color': '#fff',
+                            'font-size': '10px',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'width': '40px',
+                            'height': '40px',
+                            'border-width': 2,
+                            'border-color': '#333'
+                        }
+                    },
+                    {
+                        selector: 'node[type="root"]',
+                        style: {
+                            'background-color': '#ffff00',
+                            'width': '60px',
+                            'height': '60px',
+                            'font-weight': 'bold'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 1,
+                            'line-color': '#333',
+                            'curve-style': 'haystack'
+                        }
+                    }
+                ],
+                layout: {
+                    name: 'concentric',
+                    concentric: function(node) {
+                        // Nodes with fewer hops stay closer to the center
+                        return node.data('hops') ? (20 - node.data('hops')) : 0;
+                    },
+                    levelWidth: function() { return 1; },
+                    padding: 50
+                }
+            });
         }
+        
+        function calculateHops(ttl) {
+            if (ttl <= 64) return 64 - ttl;
+            if (ttl <= 128) return 128 - ttl;
+            return 255 - ttl;
+        }
+        
+        function toggleViz() {
+            const viz = document.getElementById('network-viz');
+            const isHidden = window.getComputedStyle(viz).display === 'none';
+            
+            if (isHidden) {
+                viz.style.display = 'block';
+                // Fetch latest results to build the graph
+                fetch('/api/status')
+                    .then(r => r.json())
+                    .then(data => {
+                        initVisualizer(data.results);
+                    });
+            } else {
+                viz.style.display = 'none';
+            }
+        }
+        
     </script>
 </body>
 </html>
