@@ -14,7 +14,7 @@
 
 ## General Hieerarchy
 
-<img width="1463" height="742" alt="image" src="https://github.com/user-attachments/assets/16d3dcdf-fbb8-4089-a4b8-bdc9ea23a311" />
+<img width="1448" height="734" alt="image" src="https://github.com/user-attachments/assets/84ddd223-8651-4585-85a1-39ec5501de79" />
 
 
 ## Installation
