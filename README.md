@@ -13,15 +13,8 @@
 * [Nmap](https://nmap.org) (Must be installed and in your system PATH)
 
 ## General Hieerarchy
-scanroids/
-├ScAnRoIdS.py			# Single entry point to start the app (includes global settings)
-├engine.py			# Scan Logic 
-├registry.py			# scan (normal & exteeended) dictionary and port group registration 
-├surgeon.py			# Data extraction and External Tool execution/manager
-├web_interface.py		# Flask Blueprints for the UI
-├── templates                	# sub directory supporting the flask html templates
-│   ├── index.html	        # HTML Template and Javascript Logic
-│   ├── login.html	        # HTML Template for login form (logic in web_interface.py)
+
+<img width="1463" height="742" alt="image" src="https://github.com/user-attachments/assets/16d3dcdf-fbb8-4089-a4b8-bdc9ea23a311" />
 
 
 ## Installation
