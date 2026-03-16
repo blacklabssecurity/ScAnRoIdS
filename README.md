@@ -6,11 +6,13 @@
 ## Features
 * **Automated Scanning**: Trigger Nmap scans directly from Python scripts.
 * **XML Parsing**: Automatically converts Nmap's XML output into clean, structured data.
-* **Custom Presets**: Easily configure and reuse scan parameters.
+* **Extensive Presets**: Easily configure and reuse scan parameters.
 
 ## Prerequisites
 * [Python 3.x](https://www.python.org)
 * [Nmap](https://nmap.org) (Must be installed and in your system PATH)
+* [searchsploit](https://www.exploit-db.com/searchsploit) (Must be installed and in your system PATH)
+* [gowitness](https://github.com/sensepost/gowitness/wiki/Installation) (Must be installed and in your system PATH)
 
 ## General Hieerarchy
 
