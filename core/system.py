@@ -6,17 +6,19 @@ Purpose: Gathers system-level telemetry, identifies the real operator,
          maps network interfaces, and tracks VPN connection states.
 """
 
-import subprocess
 import os
-import getpass
-import socket
+import re
 import fcntl
+import socket
 import struct
+import getpass
+import subprocess
 
 
 def get_operator():
     """Identifies the actual user even when running under sudo."""
     return os.environ.get('SUDO_USER', getpass.getuser())
+
 
 def get_local_ips():
     """Retrieves all assigned IP addresses for the --exclude flag."""
@@ -61,11 +63,48 @@ def check_vpn_state(iface, ips):
     """
     vpn_prefixes = ['tun', 'tap', 'ppp', 'wg', 'vpn']
     is_vpn_iface = any(prefix in iface.lower() for prefix in vpn_prefixes)
-    
+
     # Check for common VPN IP subnets (e.g., 10.8.0.0/24)
     is_vpn_ip = any(ip.startswith(('10.8.', '172.16.', '10.255.')) for ip in ips)
-    
+
     return is_vpn_iface or is_vpn_ip
+
+
+def nmap_to_bpf(target_str):
+    """
+    Converts Nmap shorthand (ranges, lists) into Tshark BPF syntax.
+    """
+    target_str = target_str.strip()
+
+    # 1. Handle Standard CIDR (192.168.1.0/24)
+    if "/" in target_str:
+        return f"net {target_str}"
+
+    # 2. Handle Simple Host or IP (192.168.1.1)
+    if not any(char in target_str for char in "-,"):
+        return f"host {target_str}"
+
+    # 3. Handle Nmap Shorthand (192.168.1.1-8 or 192.168.1.3,6,9)
+    # Regex: Matches Prefix (192.168.1) and Suffix (1-8 or 3,6,9)
+    match = re.match(r"([\d\.]+)\.([\d\-\,]+)", target_str)
+    if match:
+        prefix, suffix = match.group(1), match.group(2)
+        ips = []
+
+        # Split by comma first (3,6,9)
+        for part in suffix.split(','):
+            if '-' in part: # Handle Range (1-8)
+                start, end = map(int, part.split('-'))
+                for i in range(start, end + 1):
+                    ips.append(f"{prefix}.{i}")
+            else: # Handle Single (3)
+                ips.append(f"{prefix}.{part}")
+
+        return " or ".join([f"host {ip}" for ip in ips])
+
+    # Fallback for complex strings
+    return f"host {target_str}"
+
 
 # --- EXPORTED SYSTEM STATE ---
 OPERATOR     = get_operator()
