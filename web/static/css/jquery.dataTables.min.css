@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+        <head>
+                <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+                <meta name="viewport" content="width=device-width,initial-scale=1">
+
+                <title>DataTables CDN</title>
+
+                <link rel="shortcut icon" type="image/png" href="https://datatables.net/media/images/favicon.png">
+                <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://datatables.net/feeds/releases.xml">
+
+                <link rel="stylesheet" type="text/css" href="https://datatables.net/media/css/site.css?_=eb0fe4b60eaf44ffc28fe3db583158411">
+
+                <style type="text/css">
+
+                </style>
+
+                <script src="https://datatables.net/media/js/mode.js?_=7d75d17e71e80e0c3b37beffc647edba"></script>
+                <script type="text/javascript" src="https://datatables.net/media/js/site.js?_=7d75d17e71e80e0c3b37beffc647edba" data-domain="cdn.datatables.net" data-api="https://analytics.datatables.net/api/event"></script>
+                <script src="https://datatables.net/media/js/dynamic.php"></script>
+                <script defer async src="https://media.ethicalads.io/media/client/ethicalads.min.js" onload="window.dtAds()" onerror="window.dtAds()"></script>
+                <script type="text/javascript" language="javascript" src="https://datatables.net/download/files.js?1769775174"></script>
+                <script class="init">
+                        dt_demo.init();
+
+
+                </script>
+        </head>
+        <body class="">
+                <a name="top"></a>
+
+                <div class="fw-background">
+                        <div>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                        </div>
+                </div>
+
+                <div class="fw-container">
+                        <div class="fw-header">
+                                <div class="nav-wrapper">
+                                        <div class="nav-master">
+                                                <div class="nav-item active">
+                                                        <a href="https://datatables.net/">
+                                                                <span class="icon-dt"></span>
+                                                                <span>DataTables</span>
+                                                                <div class="nav-explain">
+                                                                        Advanced interaction<br>features for your tables.
+                                                                </div>
+                                                        </a>
+                                                </div>
+                                                <div class="nav-item">
+                                                        <a href="https://editor.datatables.net/">
+                                                                <span class="icon-e"></span>
+                                                                <span>Editor</span>
+                                                                <div class="nav-explain">
+                                                                        Comprehensive editing<br>library for DataTables.
+                                                                </div>
+                                                        </a>
+                                                </div>
+                                        </div>
+
+                                        <div class="nav-search">
+                                                <div class="nav-item i-manual">
+                                                        <a href="https://datatables.net/manual">Manual</a>
+                                                </div>
+                                                <div class="nav-item i-download">
+                                                        <a href="https://datatables.net/download">Download</a>
+                                                </div>
+                                                <div class="nav-item i-user" style="display: none">
+                                                        <div class="account"></div>
+                                                </div>
+                                                <div class="nav-item search" style="display: none"></div>
+                                                <div class="nav-item dt-demo-options"></div>
+                                        </div>
+                                </div>
+                                <div class="nav-ad">
+                                        <div data-ea-publisher="datatablesnet" data-ea-type="image" data-ea-manual="true"></div>
+                                </div>
+                        </div>
+
+                        <div class="fw-nav">
+                                <div class="nav-main">
+                                        <ul><li class=" sub"><a href="//datatables.net/examples/index">Examples</a></li><li class=" sub"><a href="//datatables.net/manual/index">Manual</a></li><li class=" sub"><a href="//datatables.net/reference/index">Reference</a></li><li class=" sub"><a href="//datatables.net/extensions/index">Extensions</a></li><li class=" sub"><a href="//datatables.net/plug-ins/index">Plug-ins</a></li><li class=""><a href="//datatables.net/blog/index">Blog</a></li><li class=""><a href="//datatables.net/forums/index">Forums</a></li><li class=""><a href="//datatables.net/support/index">Support</a></li><li class=""><a href="//datatables.net/faqs/index">FAQs</a></li><li class=""><a href="//datatables.net/download/index">Download</a></li><li class=""><a href="//datatables.net/purchase/index">Purchase</a></li></ul>
+                                </div>
+
+                                <div class="mobile-show">
+                                        <a>&#8801; <i>Show site navigation</i></a>
+                                </div>
+                        </div>
+
+                        <div class="fw-body">
+                                <div class="content">
+                                        <h1 class="page_title">DataTables CDN</h1>
+
+                                        <p>The DataTables <a href="http://en.wikipedia.org/wiki/Content_delivery_network">Content Delivery Network (CDN)</a> is a permanent store of the software released as part of the DataTables project for you to use on your site without needing to host it yourself.</p>
+
+<p>Furthermore, the CDN can serve the files for the DataTables components and dependencies that you require as a single concatenated and minified file, or as individual files through use of the <a href="//datatables.net/download">DataTables download builder</a>.</p>
+
+<p>All you then need to do is include the files you want on your page! This can help improve performance on your site and make prototyping much easier.</p>
+
+<p>The DataTables CDN is powered by the <a href="http://cloudflare.com">CloudFlare</a> network.</p>
+
+<div id="styling"></div>
+
+<h2 data-anchor="DataTables"><a name="DataTables" href="#DataTables"></a>DataTables</h2>
+
+<p>DataTables is the core software of the DataTables project, and involves two primary files, the DataTables Javascript and CSS.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/">Documentation, usage and examples</a> </li>
+<li><a href="2.3.7/">Release notes</a></li>
+<li><a href="releases.html">Previous releases</a></li>
+</ul>
+
+<h3 data-anchor="Release"><a name="Release" href="#Release"></a>Release</h3>
+
+<p>DataTables 2.3.7 is the current stable release of DataTables.</p>
+
+<div data-cdn="DataTables">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/2.3.7/js/dataTables.min.js" readonly>
+    </div>
+</div>
+
+<h2 data-anchor="Extensions"><a name="Extensions" href="#Extensions"></a>Extensions</h2>
+
+<p>Extensions can be used to add additional functionality to DataTables. Those extensions which are part of the core DataTables project are available on the CDN. Current releases are shown below. The files for historical versions are also available, although for new projects always use the latest versions!</p>
+
+<h3 data-anchor="AutoFill"><a name="AutoFill" href="#AutoFill"></a>AutoFill</h3>
+
+<p>AutoFill adds an Excel like option to a table, allowing click and drag over cells, filling in information and incrementing numbers as needed.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/autofill">Documentation, usage and examples</a> </li>
+<li><a href="autofill/2.7.1/">Release notes</a></li>
+<li><a href="autofill">Previous releases</a></li>
+</ul>
+
+<div data-cdn="AutoFill">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/autofill/2.7.1/css/autoFill.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/autofill/2.7.1/js/dataTables.autoFill.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="Buttons"><a name="Buttons" href="#Buttons"></a>Buttons</h3>
+
+<p>The Buttons extension for DataTables provides a common set of options, API methods and styling to display buttons on a page that will interact with a DataTable. The core library provides the based framework upon which plug-ins can built. Plug-in buttons are also provided for data export, printing and column visibility control.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/buttons">Documentation, usage and examples</a> </li>
+<li><a href="buttons/3.2.6/">Release notes</a></li>
+<li><a href="buttons">Previous releases</a></li>
+</ul>
+
+<div data-cdn="Buttons">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/buttons/3.2.6/css/buttons.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/buttons/3.2.6/js/dataTables.buttons.min.js" readonly>
+    </div>
+</div>
+
+<p>Buttons also provides the following files that provide functional buttons.</p>
+
+<p>Column visibility control:</p>
+
+<div class="cdn">
+    <span>JS</span>
+    <input type="text" value="https://cdn.datatables.net/buttons/3.2.6/js/buttons.colVis.min.js" readonly />
+</div>
+
+<p>Print button:</p>
+
+<div class="cdn">
+    <span>JS</span>
+    <input type="text" value="https://cdn.datatables.net/buttons/3.2.6/js/buttons.print.min.js" readonly />
+</div>
+
+<p>HTML5 export buttons:</p>
+
+<div class="cdn">
+    <span>JS</span>
+    <input type="text" value="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js" readonly />
+</div>
+
+<p>Please note that the HTML5 export buttons require <a href="https://stuk.github.io/jszip/">JSZip</a> for Excel export and <a href="http://pdfmake.org/">PDFMake</a> for PDF export. Use the <a href="https://datatables.net/download">download builder</a> to make sure you get all the files you need.</p>
+
+<h3 data-anchor="ColReorder"><a name="ColReorder" href="#ColReorder"></a>ColReorder</h3>
+
+<p>ColReorder allows the end user to modify the column order of a table through drop-and-drag of column headers.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/colreorder">Documentation, usage and examples</a> </li>
+<li><a href="colreorder/2.1.2/">Release notes</a></li>
+<li><a href="colreorder">Previous releases</a></li>
+</ul>
+
+<div data-cdn="ColReorder">
+ <div class="cdn">
+  <span>CSS</span>
+  <input type="text" value="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css" readonly>
+ </div>
+
+ <div class="cdn">
+  <span>JS</span>
+  <input type="text" value="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js" readonly>
+ </div>
+</div>
+
+<h3 data-anchor="ColumnControl"><a name="ColumnControl" href="#ColumnControl"></a>ColumnControl</h3>
+
+<p>ColumnControl lets you add column-specific control content to the header and footer of a DataTable, including ordering buttons, search inputs and search lists.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/columncontrol">Documentation, usage and examples</a> </li>
+<li><a href="columncontrol/1.2.0/">Release notes</a></li>
+<li><a href="columncontrol">Previous releases</a></li>
+</ul>
+
+<div data-cdn="ColumnControl">
+ <div class="cdn">
+  <span>CSS</span>
+  <input type="text" value="https://cdn.datatables.net/columncontrol/1.2.0/css/columnControl.dataTables.min.css" readonly>
+ </div>
+
+ <div class="cdn">
+  <span>JS</span>
+  <input type="text" value="https://cdn.datatables.net/columncontrol/1.2.0/js/dataTables.columnControl.min.js" readonly>
+ </div>
+</div>
+
+<h3 data-anchor="DateTime"><a name="DateTime" href="#DateTime"></a>DateTime</h3>
+
+<p>DateTime is DataTables' own DateTime picker, which we mainly use within Editor and SearchBuilder extensions to provide a user friendly way to select values for dates and times. It is freely available under the MIT license if you wish to use it in some other capacity or as part of a custom extension for DataTables.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/datetime">Documentation, usage and examples</a> </li>
+<li><a href="datetime/1.6.3/">Release notes</a></li>
+<li><a href="datetime">Previous releases</a></li>
+</ul>
+
+<div data-cdn="datetime">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/datetime/1.6.3/css/dataTables.dateTime.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/datetime/1.6.3/js/dataTables.dateTime.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="FixedColumns"><a name="FixedColumns" href="#FixedColumns"></a>FixedColumns</h3>
+
+<p>FixedColumns "freezes" in place the left most columns in a scrolling DataTable, to provide a guide to the end user (for example an index column).</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/fixedcolumns">Documentation, usage and examples</a> </li>
+<li><a href="fixedcolumns/5.0.5/">Release notes</a></li>
+<li><a href="fixedcolumns">Previous releases</a></li>
+</ul>
+
+<div data-cdn="FixedColumns">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/fixedcolumns/5.0.5/css/fixedColumns.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/fixedcolumns/5.0.5/js/dataTables.fixedColumns.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="FixedHeader"><a name="FixedHeader" href="#FixedHeader"></a>FixedHeader</h3>
+
+<p>The FixedHeader plug-in will freeze in place the header, footer and left and/or right most columns in a DataTable, ensuring that title information will remain always visible.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/fixedheader">Documentation, usage and examples</a> </li>
+<li><a href="fixedheader/4.0.5/">Release notes</a></li>
+<li><a href="fixedheader">Previous releases</a></li>
+</ul>
+
+<div data-cdn="FixedHeader">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/fixedheader/4.0.5/css/fixedHeader.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/fixedheader/4.0.5/js/dataTables.fixedHeader.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="KeyTable"><a name="KeyTable" href="#KeyTable"></a>KeyTable</h3>
+
+<p>KeyTable provides Excel like cell navigation on any table. Events (focus, blur, action etc) can be assigned to individual cells, columns, rows or all cells.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/keytable">Documentation, usage and examples</a> </li>
+<li><a href="keytable/2.12.2/">Release notes</a></li>
+<li><a href="keytable">Previous releases</a></li>
+</ul>
+
+<div data-cdn="KeyTable">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/keytable/2.12.2/css/keyTable.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/keytable/2.12.2/js/dataTables.keyTable.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="Responsive"><a name="Responsive" href="#Responsive"></a>Responsive</h3>
+
+<p>Responsive is an extension for DataTables that will automatically adjust the visible columns in a table to fit optimally into the available display space, with options for the end user to view any hidden data.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/responsive">Documentation, usage and examples</a> </li>
+<li><a href="responsive/3.0.8/">Release notes</a></li>
+<li><a href="responsive">Previous releases</a></li>
+</ul>
+
+<div data-cdn="Responsive">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/responsive/3.0.8/css/responsive.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/responsive/3.0.8/js/dataTables.responsive.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="RowGroup"><a name="RowGroup" href="#RowGroup"></a>RowGroup</h3>
+
+<p>RowGroup adds the ability to easily group rows in a DataTable by a given data point. The grouping is shown as an inserted row either before or after the group.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/rowgroup">Documentation, usage and examples</a> </li>
+<li><a href="rowgroup/1.6.0/">Release notes</a></li>
+<li><a href="rowgroup">Previous releases</a></li>
+</ul>
+
+<div data-cdn="RowGroup">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/rowgroup/1.6.0/css/rowGroup.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/rowgroup/1.6.0/js/dataTables.rowGroup.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="RowReorder"><a name="RowReorder" href="#RowReorder"></a>RowReorder</h3>
+
+<p>RowReorder adds the ability for rows in a DataTable to be reordered through user interaction with the table (click and drag / touch and drag). Integration with Editor's multi-row editing feature is also available to update rows immediately.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/rowreorder">Documentation, usage and examples</a> </li>
+<li><a href="rowreorder/1.5.1/">Release notes</a></li>
+<li><a href="rowreorder">Previous releases</a></li>
+</ul>
+
+<div data-cdn="RowReorder">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/rowreorder/1.5.1/css/rowReorder.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/rowreorder/1.5.1/js/dataTables.rowReorder.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="Scroller"><a name="Scroller" href="#Scroller"></a>Scroller</h3>
+
+<p>A virtual renderer for DataTables, allowing the table to look like it scrolls for the full data set, but actually only drawing the rows required for the current display, for fast operation.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/scroller">Documentation, usage and examples</a> </li>
+<li><a href="scroller/2.4.3/">Release notes</a></li>
+<li><a href="scroller">Previous releases</a></li>
+</ul>
+
+<div data-cdn="Scroller">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/scroller/2.4.3/css/scroller.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/scroller/2.4.3/js/dataTables.scroller.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="SearchBuilder"><a name="SearchBuilder" href="#SearchBuilder"></a>SearchBuilder</h3>
+
+<p>SearchBuilder provides the end user with an easy to use UI for them to create their own complex custom search expression for a DataTable. When searching through large sets of data for specific data, this can be extremely useful.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/searchbuilder">Documentation, usage and examples</a> </li>
+<li><a href="searchbuilder/1.8.4/">Release notes</a></li>
+<li><a href="searchbuilder">Previous releases</a></li>
+</ul>
+
+<div data-cdn="SearchBuilder">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/searchbuilder/1.8.4/css/searchBuilder.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/searchbuilder/1.8.4/js/dataTables.searchBuilder.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="SearchPanes"><a name="SearchPanes" href="#SearchPanes"></a>SearchPanes</h3>
+
+<p>SearchPanes adds panes to the DataTable with the capability to search by selecting rows in the panes. This is very useful when it comes to adding a more comprehensive searching feature and custom search capabilities.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/searchpanes">Documentation, usage and examples</a> </li>
+<li><a href="searchpanes/2.3.5/">Release notes</a></li>
+<li><a href="searchpanes">Previous releases</a></li>
+</ul>
+
+<div data-cdn="SearchPanes">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/searchpanes/2.3.5/css/searchPanes.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/searchpanes/2.3.5/js/dataTables.searchPanes.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="Select"><a name="Select" href="#Select"></a>Select</h3>
+
+<p>Select is an extension for DataTables that provides table item selection capabilities - rows, columns and cells. Advanced selection options are available for multi-item selection and also item selection and retrieval via the DataTables API.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/select">Documentation, usage and examples</a> </li>
+<li><a href="select/3.1.3/">Release notes</a></li>
+<li><a href="select">Previous releases</a></li>
+</ul>
+
+<div data-cdn="Select">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/select/3.1.3/css/select.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/select/3.1.3/js/dataTables.select.min.js" readonly>
+    </div>
+</div>
+
+<h3 data-anchor="StateRestore"><a name="StateRestore" href="#StateRestore"></a>StateRestore</h3>
+
+<p>StateRestore extends DataTables state saving abilities, allowing multiple states to be saved and reloaded at any time. There is also the possibility to customise which elements of DataTables are stored in each saved state.</p>
+
+<ul class="markdown">
+<li><a href="//datatables.net/extensions/staterestore">Documentation, usage and examples</a> </li>
+<li><a href="staterestore/1.4.3/">Release notes</a></li>
+<li><a href="staterestore">Previous releases</a></li>
+</ul>
+
+<div data-cdn="StateRestore">
+    <div class="cdn">
+        <span>CSS</span>
+        <input type="text" value="https://cdn.datatables.net/staterestore/1.4.3/css/stateRestore.dataTables.min.css" readonly>
+    </div>
+
+    <div class="cdn">
+        <span>JS</span>
+        <input type="text" value="https://cdn.datatables.net/staterestore/1.4.3/js/dataTables.stateRestore.min.js" readonly>
+    </div>
+</div>
+
+<h2 data-anchor="Plugins"><a name="Plugins" href="#Plugins"></a>Plugins</h2>
+
+<p>The DataTables plug-ins are a little different from the software above in that they do not have a specific release. Rather, for the CDN, each commit is available using the initial part of the git hash for each commit, to ensure that the version of the file that you use is always available for your use and will not change version unexpectedly.</p>
+
+<p>Furthermore, note that the use of plug-ins on the CDN is <em>primarily for prototyping</em>. Although you can include plug-ins on your page directly from the CDN, if you are using multiple plug-ins, you will benefit from combining those plug-ins that you are using into a single file to keep the number of imported files to a minimum.</p>
+
+<ul class="markdown">
+<li><a href="plug-ins/2.3.7">Latest plug-ins</a>
+
+<ul class="markdown">
+<li><a href="plug-ins/2.3.7/api">API</a></li>
+<li><a href="plug-ins/2.3.7/sorting">Sorting</a></li>
+<li><a href="plug-ins/2.3.7/type-detection">Type detection</a></li>
+<li><a href="plug-ins/2.3.7/integration">Integration</a></li>
+<li><a href="plug-ins/2.3.7/features">Features</a></li>
+<li><a href="plug-ins/2.3.7/i18n">Internationalisation</a></li>
+<li><a href="plug-ins/2.3.7/pagination">Pagination</a></li>
+<li><a href="plug-ins/2.3.7/filtering">Filtering</a></li>
+</ul></li>
+<li><a href="plug-ins">Historic plug-in builds</a></li>
+<li><a href="//datatables.net/plug-ins">Plug-in documentation</a></li>
+</ul>
+
+                                </div>
+                        </div>
+
+                        <div class="fw-page-nav">
+                                <div class="page-nav">
+                                        <div class="page-nav-title">Page navigation</div>
+                                </div>
+                        </div>
+                </div>
+
+                <div class="fw-footer">
+                        <div class="copyright">
+                                <h4>DataTables</h4>
+                                <p>
+                                        DataTables designed and created by <a href="//sprymedia.co.uk">SpryMedia Ltd</a>.<br>
+                                        &copy; 2007-2026 <a href="//datatables.net/license/mit">MIT licensed</a>. <a href="/privacy.html">Privacy policy</a>.<br>
+                                        SpryMedia Ltd is registered in Scotland, company no. SC456502.
+                                </p>
+                        </div>
+                </div>
+        </body>
+</html>
