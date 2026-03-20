@@ -11,18 +11,21 @@ import sys
 import datetime
 import signal
 import time
+import subprocess
 
 # --- Forces Python to look in the current folder for 'core' ---
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # --- GLOBAL IMPORTS (Always at the top) ---
+from config import get_banner, SCAN_LIBRARY, WEB_PORTS
 from core.ui import *
-from core.context import ScanContext
 from core.system import OPERATOR, LOCAL_IPS, INTERFACE, INTERFACE_IP, IS_VPN
-from config import get_banner, SCAN_LIBRARY
-from core.scanner import deploy_scan, deploy_audit_loop
 from core.parser import parse_results, pre_flight_check
+from core.context import ScanContext
+from core.scanner import deploy_scan, deploy_audit_loop
+from core.dashboard import start_dashboard
 from modules.gowitness import run_gowitness_scan, start_gowitness_server
+from modules.firewalker import run_firewalk
 
 # Global list to track background processes (Gowitness server, Dashboard, etc.)
 ACTIVE_PROCESSES = []
@@ -67,7 +70,7 @@ def get_session_selection():
         log_warn("No existing sessions found in /tools/scans/.")
         return None
 
-    print(f"\n{BLUE}{BOLD}========================== - R - e - S - u - M - e - =========================={RESET}")
+    print(f"\n{BLUE}{BOLD}==========================| Resumable sEsSiOnS appear below |==========================={RESET}")
     print(f"{'#':<3} | {'Session Name':<35} | {'Started':<17} | {'Hosts':<5} | {'Web'}")
     print("-" * 75)
 
@@ -150,17 +153,20 @@ def cleanup_and_exit(ctx, start_time, hosts=0, services=0):
 
 
     """
-    # 1. Print to terminal
+    # Print to terminal
     print(summary)
 
-    # 2. Save to text file (Strip ANSI colors for the file)
+    # Save to text file (Strip ANSI colors for the file)
     # We strip colors and add a trailing newline for the next run
-    clean_text = summary.replace(GREEN, "").replace(RESET, "").replace(BLUE, "").replace(BOLD, "").replace(CYAN, "").replace(YELLOW, "")
+    # Using a raw string r"" prevents 'invalid escape sequence' warnings
+    clean_text = summary
+    for color in [GREEN, RESET, BLUE, BOLD, CYAN, YELLOW, RED]:
+        clean_text = clean_text.replace(color, "")
 
     try:
         with open(ctx.base_path / "session_summary.txt", "a") as f:
             f.write(clean_text)
-            f.write("\n" + "="*17 + " See Below if... R e S u M e D -  s E S s I o N " + "="*17 + "\n") # Divider for the next operator's entry
+            f.write("\n" + "="*17 + " See Below if... R e S u M e D - s E S s I o N " + "="*17 + "\n")
     except Exception as e:
         log_error(f"Failed to update session_summary.txt: {e}")
 
@@ -172,6 +178,7 @@ def main():
     check_privileges()
     SESSION_START_TIME = datetime.datetime.now() # Basis for final runtime stats
 
+
     # --- Variables
     targets = ""
     ctx = None
@@ -179,6 +186,7 @@ def main():
 
     clear_screen()
     print_banner(get_banner())
+
 
     # --- 1. Environmental Situational Awareness
     log_note(f"Operator Identified: {OPERATOR} | Primary Interface: {INTERFACE}")
@@ -188,6 +196,23 @@ def main():
 
     log_note(f"Scanning Exclusion List (Local IPs): {LOCAL_IPS}")
 
+
+    # --- SET OPERATIONAL POSTURE ---
+    print(f"\n{YELLOW}{BOLD}--- [ OPERATIONAL POSTURE ] ---{RESET}")
+    greedy_choice = log_question("Enable GREEDY_MODE for automated SMB/Looting? (y/n):").lower()
+
+    # We update the actual config module so all imported files see it
+    import config
+    if greedy_choice == 'y':
+        config.GREEDY_MODE = True
+        log_success("POSTURE: GREEDY_MODE Enabled (Automated Enum/Looting).")
+    else:
+        config.GREEDY_MODE = False
+        log_note("POSTURE: SURGICAL_MODE Active (Interactive Prompts).")
+
+    print(f"{YELLOW}-------------------------------{RESET}\n")
+
+
     # --- 2. SESSION INITIALIZATION ---
     while not ctx:
         mode = log_question("Start [N]ew Session or [R]esume existing? (N/R):").lower()
@@ -195,16 +220,15 @@ def main():
         if mode == 'r':
             ctx = get_session_selection()
             if ctx:
-                # [NEW] Pre-Flight Re-hydration
-                from core.parser import pre_flight_check
+                # Pre-Flight Re-hydration
                 total_hosts, total_svcs = pre_flight_check(ctx)
 
                 # Check for targets to allow Phase 2 or Option 99 to run
                 host_file = ctx.dirs['targets'] / "hosts_all.txt"
                 if host_file.exists():
                     with open(host_file, 'r') as f:
-                        targets = ",".join([line.strip() for line in f if line.strip()])
-                    log_success(f"Session {ctx.session_name} is now ACTIVE.")
+                        targets = " ".join([line.strip() for line in f if line.strip()])
+                    log_success(f"Session {ctx.session_name} is now ACTIVE (Restored Targets).")
                 else:
                     log_warn("Resumed session has no discovered hosts yet.")
 
@@ -217,6 +241,12 @@ def main():
         else:
             log_error("Selection required to proceed.")
 
+    if ctx:
+        start_dashboard(ctx)
+        log_success(f"DASHBOARD ACTIVE: http://127.0.0.1:8888")
+        log_note(f"Login: operator | Password: {ctx.customer}_{datetime.datetime.now().year}")
+
+
     # --- AUTO-START SERVICES ON RESUME ---
     if (ctx.dirs['artifacts'] / "gowitness.sqlite3").exists():
         print(f"\n{YELLOW}---- Preparing goWitness Session -----{RESET}\n")
@@ -224,6 +254,7 @@ def main():
         gowit_proc = start_gowitness_server(ctx)
         if gowit_proc:
             ACTIVE_PROCESSES.append(gowit_proc)
+
 
     # 3. Interactive Scan Orchestration Loop
     while True:
@@ -240,98 +271,257 @@ def main():
             # We use .copy() to avoid overwriting the base SCAN_LIBRARY if the script loops
             scan_meta = SCAN_LIBRARY[choice].copy()
 
-            if choice == "99":
+            # Logic for Specific Scan IDs
+            if choice == "04":
+                dns_ip = log_question("Enter Custom DNS Server IP (Leave blank for System Default):")
+                if dns_ip.strip():
+                    scan_meta['flags'] += f" --dns-servers {dns_ip.strip()}"
+                    log_success(f"Using Custom DNS: {dns_ip}")
+                    log_success("DNS mapping file: targets/hosts_ip-dns_mappings.txt")
+                else:
+                    scan_meta['flags'] += " --system-dns"
+                    log_note("Using System Default DNS.")
+
+            # --- Choice 05/61: Zombie Logic [NEW] ---
+            elif choice in ["05", "61"]:
+                print(f"\n{YELLOW}--- [ ZOMBIE STEALTH CONFIGURATION ] ---{RESET}")
+                z_input = log_question("Enter Zombie Host (IP or IP:PORT) [Default Port 80]:")
+
+                # Parse Input
+                z_ip, z_port = z_input.split(":") if ":" in z_input else (z_input, "80")
+                t_ports = log_question("Enter Target Port(s) to probe (e.g., 445, 80-100, or -p-):")
+
+                # --- SUITABILITY CHECK ---
+                print(f"\n{YELLOW}--- [ ZOMBIE SUITABILITY CHECK ] ---{RESET}")
+                log_task(f"Preparing Zombie Validation on {z_ip}:{z_port}...")
+                check_cmd = ["nmap", "-O", "-v", "-p", z_port, "--max-retries", "1", "--host-timeout", "30s", z_ip]
+                log_task(f"Executing: {' '.join(check_cmd)}")
+
+
+                try:
+                    proc = subprocess.run(check_cmd, capture_output=True, text=True)
+                    is_ready = "Incremental" in proc.stdout and f"{z_port}/tcp open" in proc.stdout
+
+                    if is_ready:
+                        log_success(f"Zombie {z_ip}:{z_port} is UP and PREDICTABLE (Incremental IPID).")
+                    else:
+                        log_warn(f"Zombie {z_ip} suitability check failed (Non-incremental or Port Closed).")
+                        if log_question("Attempt stealth scan anyway? (y/n):").lower() != 'y':
+                            continue # Jump back to main menu
+
+                    # Overwrite flags with the surgical Zombie strings
+                    z_flags = f"-Pn -vv -sI {z_ip}:{z_port} -p {t_ports}"
+                    scan_meta['flags'] = z_flags
+                    # Ensure hybrid scans (61) use it for both phases
+                    scan_meta['flags_p1'] = z_flags
+                    scan_meta['flags_p2'] = z_flags
+
+                except Exception as e:
+                    log_error(f"Zombie check failed: {e}")
+                    continue
+
+            elif choice == "10":
+                # Override the global targets for this specific multicast task
+                targets = "ff02::1"
+                scan_meta['flags'] += f" -e {INTERFACE}"
+                log_task(f"IPv6 Multicast Discovery Initialized on {INTERFACE}...")
+
+            elif choice == "20":
+                # Ensure we have a target to check for IPv6 colons
+                current_target = targets if targets else "0.0.0.0" 
+
+                if ":" in current_target:
+                    # Only add -6 if it's not already in the config.py flags
+                    if "-6" not in scan_meta['flags']:
+                        scan_meta['flags'] += " -6"
+                    log_task("SCTP Probe: IPv6 Multihoming Mode...")
+                else:
+                    log_task("SCTP Probe: IPv4 Legacy Mode...")
+
+            elif choice == "36":
+                print(f"\n{RED}{BOLD}!!! SCADA/ICS FRAGILITY WARNING !!!{RESET}")
+                log_warn("Industrial controllers (PLCs/HMIs) can be crashed by active scanning.")
+                log_warn("Scan 36 is locked to -T2 (Polite) to minimize packet per second impact.")
+
+                if log_question("Are you CERTAIN you want to proceed with SCADA discovery? (y/n):").lower() != 'y':
+                    log_note("Aborting SCADA Tasking.")
+                    continue
+
+            elif choice == "51":
+                # Firewalking requires a single IP for accuracy in TTL calculation
+                if "/" in targets or "," in targets:
+                    log_error("Firewalk (51) requires a single Target IP, not a range.")
+                    continue
+
+                status = run_firewalk(ctx, targets)
+                # This status can be pushed to your future dashboard
+                log_note(f"Final Status: {status}")
+                continue
+
+            elif choice == "99":
                 custom_flags = ""
                 while not custom_flags:
                     custom_flags = log_question("Enter your custom Nmap flags (e.g. -Pn -n -vv -sS -p 80,443 -T4):")
                 scan_meta['flags'] = custom_flags
                 log_success(f"Custom Tasking Initialized: {custom_flags}")
             else:
-                log_task(f"Tasking Initialized: {scan_meta['name']} (Phase {scan_meta['phase']})")
+                log_task(f"Tasking Initialized: {scan_meta['name']} (Phase {scan_meta['phases'][0]})")
 
             # --- PHASE ORCHESTRATION ---
             log_note(f"Handoff to Scanner Engine: {scan_meta['name']}...")
 
+            # --- HIGH PERFORMANCE & SCOPE CHECK ---
+            # Define "No-Boost" zones for fragile or stealthy scans
+            no_boost_ids = ["02", "03", "04", "05", "20", "36", "37", "60", "61", "99"]
+
+            # Logic: Is it the 'Kitchen Sink' OR a large CIDR range?
+            is_kitchen_sink = (choice == "38")
+            is_large_cidr = False
+
+            if "/" in targets:
+                try:
+                    # Capture common large CIDR suffixes
+                    suffix = int(targets.split("/")[-1])
+                    if suffix <= 24: # /24, /23 /22 ... etc.
+                        is_large_cidr = True
+                except ValueError:
+                    pass
+
+            # Execution Gate
+            if (is_kitchen_sink or is_large_cidr) and choice not in no_boost_ids:
+                print(f"\n{YELLOW}{BOLD}--- [ HIGH PERFORMANCE CHECK ] ---{RESET}")
+                log_warn(f"Large target scope or intensive scan detected: {targets}")
+
+                confirm = log_question("Inject performance switches? (--min-rate 1000, --min-parallelism 100) (y/n):").lower()
+
+                if confirm == 'y':
+                    perf_flags = " --min-hostgroup 64 --min-parallelism 100 --min-rate 1000"
+
+                    # Apply to all active phases of this scan
+                    if 'flags' in scan_meta and scan_meta['flags']:
+                        scan_meta['flags'] += perf_flags
+                    if 'flags_p1' in scan_meta:
+                        scan_meta['flags_p1'] += perf_flags
+                    if 'flags_p2' in scan_meta:
+                        scan_meta['flags_p2'] += perf_flags
+
+                    log_success(f"Performance Boosters Active: {perf_flags}")
+                else:
+                    log_note("Proceeding with default Nmap timing.")
+
+                print(f"{YELLOW}---------------------------------{RESET}\n")
+
             # TRACK 1: Phase 1 (Discovery)
-            if scan_meta['phase'] == 1:
-                success = deploy_scan(ctx, targets, scan_meta)
+            for current_phase in scan_meta['phases']:
 
-                if success:
-                    # Define artifact paths
-                    file_base = f"phase1_{ctx.customer}_{ctx.date_str}_{ctx.time_str}"
-                    xml_path = ctx.dirs['artifacts'] / f"{file_base}.xml"
-                    gnmap_path = ctx.dirs['artifacts'] / f"{file_base}.gnmap"
+                if current_phase == 1:
+                    success = deploy_scan(ctx, targets, scan_meta, current_phase, choice)
 
-                    # Trigger Data Hydration
-                    parse_ok, total_hosts, total_svcs = parse_results(xml_path, gnmap_path, ctx)
+                    if success:
+                        file_base = f"phase{current_phase}_discovery_{ctx.customer}_{ctx.date_str}_{ctx.time_str}"
+                        xml_path = ctx.dirs['artifacts'] / f"{file_base}.xml"
+                        gnmap_path = ctx.dirs['artifacts'] / f"{file_base}.gnmap"
 
-                    if parse_ok:
-                        log_success(f"Hydration Complete: {total_hosts} Hosts / {total_svcs} Services discovered.")
+                        # Trigger Data Hydration
+                        time.sleep(2) #Let nmap buffer flush to XML
+                        parse_ok, total_hosts, total_svcs = parse_results(xml_path, gnmap_path, ctx)
 
-                        # Trigger Web Screenshots
-                        if xml_path.exists():
-                            run_gowitness_scan(ctx, xml_path)
-                            gowit_proc = start_gowitness_server(ctx) 
-                            if gowit_proc:
-                                ACTIVE_PROCESSES.append(gowit_proc)
-                            log_success("Gowitness Orchestration Complete.")
+                        if parse_ok:
+                            log_success(f"Hydration Complete: {total_hosts} Hosts / {total_svcs} Services discovered.")
+
+                            # --- [ GOWITNESS GATEKEEPER START ] ---
+                            stealth_ids = ["02", "03", "04", "05", "10", "11", "20", "60", "61"]
+                            web_found = False
+                            web_keywords = ["http", "https", "web", "ssl", "nginx", "apache", "iis", "ws", "title"]
+
+                            # Crawl discovered target directories for Web indicators
+                            for d in ctx.dirs['targets'].iterdir():
+                                if d.is_dir() and "_" in d.name:
+                                    parts = d.name.lower().split("_")
+                                    svc_name = parts[0]
+                                    try:
+                                        port_num = int(parts[-1])
+                                    except: continue
+
+                                    # Check Port Registry OR Keyword Match
+                                    if port_num in WEB_PORTS or any(kw in svc_name for kw in web_keywords):
+                                        web_found = True
+                                        log_note(f"Web/HTTP Indicator: {d.name} identified.")
+                                        break
+
+                            # Trigger Web Screenshots ONLY if safe and necessary
+                            if choice not in stealth_ids and web_found:
+                                if xml_path.exists():
+                                    log_task("Initializing goWitness Orchestration...")
+                                    run_gowitness_scan(ctx, xml_path)
+                                    gowit_proc = start_gowitness_server(ctx) 
+                                    if gowit_proc:
+                                        ACTIVE_PROCESSES.append(gowit_proc)
+                                    log_success(f"goWitness Gallery is now LIVE: http://{INTERFACE_IP}:8889")
+                                else:
+                                    print(f"\n{YELLOW}-------- goWitness ----------{RESET}")
+                                    log_warn("Skipping Gowitness: XML artifact missing.")
+                            else:
+                                if choice in stealth_ids:
+                                    print(f"\n{YELLOW}-------- goWitness ----------{RESET}")
+                                    log_note(f"OPSEC LOCK: Gowitness suppressed for Stealth ID {choice}.")
+                                elif not web_found:
+                                    log_note("Gowitness Skipped: No web-related services detected.")
+
                             print(f"{YELLOW}---------------------------------{RESET}\n")
+
+                            # ONLY HOLD IF THIS IS THE ONLY/LAST PHASE
+                            if len(scan_meta['phases']) == 1 or current_phase == scan_meta['phases'][-1]:
+                                log_success(f"Session {ctx.session_name} Phase 1 Tasking Finished.")
+                                try:
+                                    print(f"\n{GREEN}{BOLD}$$$$$$$$$$ PHASE 1 COMPLETE $$$$$$$$$${RESET}")
+                                    log_note(f"Artifacts stored in : {ctx.base_path}")
+                                    log_note(f"goWitness Gallery   : http://{INTERFACE_IP}:8889")
+                                    log_note(f"Dashboard (Future)  : http://{INTERFACE_IP}:8888")
+
+                                    print(f"\n{YELLOW}{BOLD}[*] Awaiting Exit...{RESET}")
+                                    log_note(f"Press [ctrl] + [C] to terminate services and generate summary.")
+
+                                    while True:
+                                        time.sleep(1)
+
+                                except KeyboardInterrupt:
+                                    cleanup_and_exit(ctx, SESSION_START_TIME, hosts=total_hosts, services=total_svcs)
                         else:
-                            log_warn("Skipping Gowitness: XML artifact missing.")
-                            print(f"{YELLOW}---------------------------------{RESET}\n")
+                            log_error("Data Hydration failed. Check Nmap artifacts.")
 
-                        log_success(f"Session {ctx.session_name} Phase 1 Tasking Finished.")
+                # TRACK 2: Phase 2 (Audit)
+                elif current_phase == 2:
+                    success = deploy_audit_loop(ctx, scan_meta, current_phase, choice)
 
-                        # Wait State
+                    if success:
+                        log_success("All Phase 2 Audits completed successfully.")
+
                         try:
-                            print(f"\n{GREEN}{BOLD}$$$$$$$$$$ PHASE 1 COMPLETE $$$$$$$$$${RESET}")
+                            print(f"\n{GREEN}{BOLD}$$$$$$$$$$ PHASE 2 COMPLETE $$$$$$$$$${RESET}")
                             log_note(f"Artifacts stored in : {ctx.base_path}")
                             log_note(f"goWitness Gallery   : http://{INTERFACE_IP}:8889")
                             log_note(f"Dashboard (Future)  : http://{INTERFACE_IP}:8888")
+                            log_note(f"Exploit Report      : {ctx.dirs['artifacts']}/searchsploit_{ctx.customer}_{ctx.date_str}.txt")
 
                             print(f"\n{YELLOW}{BOLD}[*] Awaiting Exit...{RESET}")
-                            log_note(f"Press [ctrl] + [C] to terminate services and generate summary.")
-
+                            log_note(f"Press [ctrl]+[c] to terminate services and generate summary.")
                             while True:
                                 time.sleep(1)
 
                         except KeyboardInterrupt:
+                        # This is the ONLY way out of the loop
                             cleanup_and_exit(ctx, SESSION_START_TIME, hosts=total_hosts, services=total_svcs)
+
                     else:
-                        log_error("Data Hydration failed. Check Nmap artifacts.")
+                        log_error("Audit Loop failed or was aborted.")
 
-            # TRACK 2: Phase 2 (Audit)
-            elif scan_meta['phase'] == 2:
-                success = deploy_audit_loop(ctx, scan_meta)
+                # TRACK 3: Failure Catch
+                else:
+                    log_error("Scan execution failed or unknown phase. Check terminal output.")
 
-                if success:
-                    log_success("All Phase 2 Audits completed.")
-                    try:
-                        print(f"\n{GREEN}{BOLD}$$$$$$$$$$ PHASE 2 COMPLETE $$$$$$$$$${RESET}")
-                        log_note(f"Artifacts stored in : {ctx.base_path}")
-                        log_note(f"goWitness Gallery   : http://{INTERFACE_IP}:8889")
-                        log_note(f"Dashboard (Future)  : http://{INTERFACE_IP}:8888")
-                        log_note(f"Exploit Report      : {ctx.dirs['artifacts']}/searchsploit_{ctx.customer}_{ctx.date_str}.txt")
+            break
 
-                        print(f"\n{YELLOW}{BOLD}[*] Awaiting Exit...{RESET}")
-                        log_note(f"Press [ctrl]+[c] to terminate services and generate summary.")
-
-                        # Keep the script alive so background servers don't die
-                        while True:
-                            time.sleep(1)
-
-                    except KeyboardInterrupt:
-                        # Pass the cumulative stats to the final summary banner
-                        cleanup_and_exit(ctx, SESSION_START_TIME, hosts=total_hosts, services=total_svcs)
-
-                    # In Phase 2, we show the summary immediately after completion
-                    cleanup_and_exit(ctx, SESSION_START_TIME, hosts=total_hosts, services=total_svcs)
-
-            # TRACK 3: Failure Catch
-            else:
-                log_error("Scan execution failed or unknown phase. Check terminal output.")
-
-            break 
         else:
             log_error(f"Invalid Menu Selection: '{choice}'. Reference the banner for valid IDs.")
 
