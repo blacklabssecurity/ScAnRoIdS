@@ -1,7 +1,8 @@
 """
 Project: Scanroids Red Team Orchestrator
 Module:  core/dashboard.py
-Purpose: Flask web engine for the ScanRoids Dashboard.
+Purpose: Flask web engine for the ScanRoids Dashboard. Handles multi-user 
+         authentication, live log streaming, and SQL data presentation.
 """
 
 import os
