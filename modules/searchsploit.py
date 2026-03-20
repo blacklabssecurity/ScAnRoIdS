@@ -6,7 +6,10 @@ Purpose: Automated exploit mapping based on Nmap service/kernel strings.
 """
 
 import subprocess
-from core.ui import log_note, log_task, log_success, log_error, YELLOW, RESET, BLUE, CYAN, RED, BULLET
+from core.ui import (
+    log_note, log_task, log_success, log_error, 
+    YELLOW, RESET, BLUE, CYAN, RED, BULLET
+    )
 
 
 def run_search(ctx, service_string, ip="Unknown"):
