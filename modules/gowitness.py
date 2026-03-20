@@ -6,7 +6,11 @@ Module:  modules/gowitness.py
 
 import subprocess
 import os
-from core.ui import log_note, log_task, log_success, log_error, YELLOW, RESET, BLUE, RED, CYAN, MAGENTA
+from core.ui import (
+    log_note, log_task, log_success, log_error, 
+    YELLOW, RESET, BLUE, RED, CYAN, MAGENTA
+    )
+
 
 def run_gowitness_scan(ctx, xml_path):
     """
