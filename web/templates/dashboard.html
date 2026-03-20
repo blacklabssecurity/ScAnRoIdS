@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ScanRoids | Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.dataTables.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-dark text-light">
+
+    <!-- Top Navigation / Stats Bar -->
+    <nav class="navbar navbar-dark bg-black border-bottom border-secondary sticky-top mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand fw-bold">
+                <div class="heartbeat {{ 'pulse-green' if heartbeat else 'static-red' }}"></div>
+                SCANROIDS ORCHESTRATOR <small class="text-muted ms-2">| {{ meta.customer }}</small>
+            </span>
+            <div class="d-flex align-items-center gap-4 small text-uppercase">
+                <div>Total Targets: <span class="text-info fw-bold">{{ results|map(attribute='ip')|unique|list|length }}</span></div>
+                <div>Services: <span class="text-info fw-bold">{{ results|length }}</span></div>
+                <a href="http://127.0.0.1:8889" target="_blank" class="btn btn-sm btn-outline-secondary py-0">Gowitness Gallery</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger py-0">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <!-- Row 1: Scan Info & Live Logs -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100 p-3 shadow">
+                    <h6 class="text-muted text-uppercase small border-bottom pb-2 mb-3">Scan Overview</h6>
+                    <div class="mb-1 small">Phase: <span class="text-warning">{{ meta.scan_phase }}</span></div>
+                    <div class="mb-1 small">Status: <span class="text-success">{{ meta.status }}</span></div>
+                    <div class="mb-3 small">Operator: <span class="text-info">{{ meta.operator }}</span></div>
+                    <code class="d-block bg-black p-2 rounded border border-secondary x-small mb-2" id="nmap-cmd">{{ meta.nmap_syntax }}</code>
+                    <button class="btn btn-sm btn-secondary w-100" onclick="copyToClipboard('nmap-cmd')">Copy Nmap Syntax</button>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card h-100 p-3 shadow bg-black border-secondary">
+                    <h6 class="text-muted text-uppercase small border-bottom pb-2 mb-2">Live Terminal Stream</h6>
+                    <pre id="log-window" class="text-success x-small overflow-auto m-0" style="max-height: 150px; font-family: monospace;">[Waiting for scan data...]</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Main Results Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card p-3 shadow border-secondary">
+                    <table id="resultsTable" class="table table-dark table-hover align-middle small w-100">
+                        <thead>
+                            <tr class="text-muted x-small text-uppercase">
+                                <th>IP Address</th>
+                                <th>OS</th>
+                                <th>Port</th>
+                                <th>Service</th>
+                                <th>Reason</th>
+                                <th>TTL / Hops</th>
+                                <th>Likely Services</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in results %}
+                            <tr class="{{ 'row-interesting' if row.is_interesting }} {{ 'row-dc' if row.is_dc }}">
+                                <td class="fw-bold">{{ row.ip }}</td>
+                                <td>{{ row.os_guess }}</td>
+                                <td>
+                                    {{ row.port }}/{{ row.protocol }}
+                                    {% if row.has_tactical %}
+                                    <span class="tactical-bolt" title="Copy Tactical Suggestion" onclick="copyTactical('{{ row.ip }}', '{{ row.port }}')">⚡</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.service }}</td>
+                                <td><span class="badge bg-secondary x-small">{{ row.reason }}</span></td>
+                                <td>{{ row.ttl }} <small class="text-muted">({{ row.hops }} Hops)</small></td>
+                                <td>
+                                    <a href="#" class="text-info x-small text-decoration-none">View Shared</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-center text-muted x-small mt-5">*** Press <strong>Ctrl+C</strong> in terminal to exit and stop dashboard ***</p>
+
+    <!-- JS Scripts -->
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>
+    <script>
+        $(document).ready(function() {
+            $('#resultsTable').DataTable({
+                "pageLength": 25,
+                "stateSave": true, // PERSISTENT SORTING ON REFRESH
+                "order": [[ 0, "asc" ]],
+                "stripeClasses": []
+            });
+        });
+
+        function copyToClipboard(id) {
+            var text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text);
+            alert("Copied to clipboard!");
+        }
+
+        function copyTactical(ip, port) {
+            // TACTICAL SUGGESTION logic
+            let cmd = `nmap -Pn -sV --script vuln,smb-vuln* -p ${port} ${ip}`;
+            navigator.clipboard.writeText(cmd);
+            alert(`Tactical command copied for ${ip}:${port}`);
+        }
+    </script>
+</body>
+</html>
