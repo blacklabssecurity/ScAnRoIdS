@@ -9,7 +9,12 @@ Purpose: Handles session initialization and "Adoption" of existing session
 import os
 import datetime
 from pathlib import Path
-from core.ui import log_task, log_success, log_error, log_note, YELLOW, BLUE, RED, CYAN, BOLD, RESET, BULLET
+from core.ui import (
+    log_task, log_success, log_error,
+    log_note, YELLOW, BLUE, RED, CYAN,
+    BOLD, RESET, BULLET
+    )
+
 
 class ScanContext:
     def __init__(self, customer_name, resume_path=None):
