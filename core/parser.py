@@ -9,7 +9,11 @@ Purpose: Tiered parsing for Nmap results. Attempts XML first for detail,
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from core.ui import log_task, log_success, log_error, log_warn, log_note, RESET, YELLOW, BLUE, GREEN, RED, BOLD
+from core.ui import (
+    log_task, log_success, log_error, log_warn, 
+    log_note, RESET, YELLOW, BLUE, GREEN, RED, BOLD
+    )
+from config import SCADA_TCP, SCADA_UDP 
 
 
 def parse_results(xml_path, gnmap_path, ctx):
@@ -28,8 +32,7 @@ def parse_results(xml_path, gnmap_path, ctx):
     if not success:
         log_warn("XML artifact corrupted. Pivoting to GNMAP fallback...")
         # Note: GNMAP has limited service data, so services will likely be 0
-        success, hosts = _parse_gnmap(gnmap_path, ctx)
-        services = 0 
+        success, hosts, services = _parse_gnmap(gnmap_path, ctx) 
         final_success = success
 
     if final_success:
@@ -40,7 +43,7 @@ def parse_results(xml_path, gnmap_path, ctx):
 
 
 def _parse_xml(xml_file, ctx):
-    """Detailed XML Parsing Logic with telemetry counts."""
+    """Detailed XML Parsing Logic with DNS Mapping support."""
     host_count = 0
     svc_count = 0
     try:
@@ -49,39 +52,106 @@ def _parse_xml(xml_file, ctx):
         root = tree.getroot()
 
         for host in root.findall('host'):
+            # 1. Capture IP and Status
             status = host.find('status').get('state')
-            if status == 'up':
-                host_count += 1
-                ip = host.find('address').get('addr')
-                _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip)
+            ip = host.find('address').get('addr')
 
-                # Port/Service Categorization
+            # --- DNS HOSTNAME EXTRACTION ---
+            # We do this BEFORE the 'up' check so we capture names from List Scans (-sL)
+            hostnames_node = host.find('hostnames')
+            if hostnames_node is not None:
+                for hn in hostnames_node.findall('hostname'):
+                    name = hn.get('name')
+                    if name:
+                        map_file = ctx.dirs['targets'] / "hosts_ip-dns_mappings.txt"
+                        _append_dns_map(map_file, ip, name)
+
+            if status == 'up' or "-6" in str(xml_file):
+                host_count += 1
+                addr_node = host.find('address')
+                if addr_node is not None:
+                    ip = addr_node.get('addr')
+                    _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip)
+
+                # SINGLE PORT LOOP (Efficiency for Kitchen Sink)
                 for p in host.findall('.//port'):
-                    svc_count += 1 # Increment for every open port found
-                    port_id = p.get('portid')
+                    svc_count += 1
+                    port_id_str = p.get('portid')
+                    port_id_int = int(port_id_str)
+                    proto = p.get('protocol', 'tcp')
+
                     svc = p.find('service')
                     svc_name = svc.get('name') if svc is not None else "unknown"
 
-                    svc_dir = ctx.dirs['targets'] / f"{svc_name}_{port_id}"
+                    # Define the service directory
+                    svc_dir = ctx.dirs['targets'] / f"{svc_name}_{port_id_str}_{proto}"
                     svc_dir.mkdir(exist_ok=True)
                     _append_target(svc_dir / "hosts_all.txt", ip)
 
+                    # --- FRAGILE DEVICE ALERT ---
+                    if port_id_int in SCADA_TCP or port_id_int in SCADA_UDP:
+                        fragile_marker = svc_dir / f"!!!_FRAGILE_{ip.replace('.','-')}_!!!"
+                        if not fragile_marker.exists():
+                            with open(fragile_marker, "w") as f:
+                                f.write(f"ALERT: {ip} port {port_id_int} is SCADA/ICS.")
+                            # Terminal warning for the operator
+                            log_warn(f"FRAGILE DEVICE: {ip} is running SCADA on {port_id_int}/{proto}!")
+
+                # --- ZOMBIE CANDIDATE DETECTION ---
+                seq_class = ""
+
+                # Try Nmap Scripts (ipidseq)
+                for script in host.findall('.//script'):
+                    if script.get('id') == 'ipidseq':
+                        seq_class = script.get('output', '').lower()
+
+                # Try Native OS Engine Tag (ipidsequence)
+                if not seq_class:
+                    ipid_node = host.find('ipidsequence')
+                    if ipid_node is not None:
+                        seq_class = ipid_node.get('class', '').lower()
+
+                # Final Deep Search: Grep the raw .nmap text if XML is "unsure"
+                if not seq_class:
+                    nmap_file = xml_file.with_suffix('.nmap')
+                    if nmap_file.exists():
+                        with open(nmap_file, 'r') as f:
+                            # We look for the IPID line specifically in this host's block
+                            content = f.read()
+                            if ip in content:
+                                match = re.search(r"IP ID Sequence Generation: ([\w\s-]+)", content)
+                                if match:
+                                    seq_class = match.group(1).lower()
+
+                # --- Execute Alert & Looting ---
+                if "incremental" in seq_class:
+                    zombie_file = ctx.dirs['targets'] / "zombie_candidates.txt"
+                    _append_target(zombie_file, f"{ip:<15} | {seq_class.strip()}")
+                    log_success(f"ZOMBIE FOUND: {ip} is UP and PREDICTABLE ({seq_class.strip()}).")
+
         return True, host_count, svc_count
-    except Exception:
+    except Exception as e:
+        log_error(f"Parser Error: {e}")
         return False, 0, 0
+
 
 def _parse_gnmap(gnmap_file, ctx):
     """Robust Grepable Fallback with host telemetry."""
     host_count = 0
+    services = 0
     try:
         log_task(f"Executing GNMAP Fallback: {gnmap_file.name}")
+        unique_ips = set()
         with open(gnmap_file, 'r') as f:
             for line in f:
-                if "Status: Up" in line:
-                    host_count += 1
+                if "Status: Up" in line or "Ports:" in line:
                     ip_match = re.search(r'Host: ([\d\.]+) ', line)
                     if ip_match:
-                        _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip_match.group(1))
+                        ip = ip_match.group(1)
+                        if ip not in unique_ips:
+                            _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip)
+                            unique_ips.add(ip)
+                            host_count += 1
         # GNMAP doesn't make service counting easy, so we return 0 for svcs
         return True, host_count, 0
     except Exception as e:
@@ -101,6 +171,23 @@ def _append_target(file_path, ip):
     if ip not in existing_ips:
         with open(file_path, "a") as f:
             f.write(f"{ip}\n")
+
+
+def _append_dns_map(file_path, ip, hostname):
+    """Safely adds unique IP | Hostname pairs to the mapping file."""
+    # Skip generic reverse-DNS noise
+    if "in-addr.arpa" in hostname.lower():
+        return
+
+    entry = f"{ip:<20} | {hostname}"
+    existing = []
+    if file_path.exists():
+        with open(file_path, 'r') as f:
+            existing = [line.strip() for line in f]
+
+    if entry not in existing:
+        with open(file_path, "a") as f:
+            f.write(f"{entry}\n")
 
 
 def _deduplicate_all(target_root):
