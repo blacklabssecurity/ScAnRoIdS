@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  modules/boogies.py
 Purpose: Used to search and parse soucre code of web pages for interesting
          keywords. Potential leakage of data.
