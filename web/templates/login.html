@@ -1,3 +1,8 @@
+/* 
+Project: ScAnRoIdS Red Team Orchestrator
+Module: web/templates/login.html
+Purpose: Authentication page for the main dashboard of ScAnRoIdS.
+*/
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +33,7 @@
         <form action="{{ url_for('login') }}" method="POST">
             <div class="input-group-row">
                 <label>Username</label>
-                <input type="text" name="username" placeholder="operator" required>
+                <input type="text" name="username" placeholder="who dis?" required>
             </div>
             <div class="input-group-row">
                 <label>Password</label>
