@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+"""
+Project: Scanroids Red Team Orchestrator
+Module:  modules/searchsploit.py
+Purpose: Interactive SMB Looting module. 
+         Allows operator to target specific shares for recursive downloads.
+"""
+
 import time
 import subprocess
 from core.ui import (
@@ -5,13 +13,6 @@ from core.ui import (
     YELLOW, BLUE, RED, CYAN, BOLD, RESET, BULLET
     )
 from core.system import INTERFACE
-
-"""
-Project: Scanroids Red Team Orchestrator
-Module:  modules/searchsploit.py
-Interactive SMB Looting module. 
-Allows operator to target specific shares for recursive downloads.
-"""
 
 
 def run_smbget(ctx, ip, share_name="IPC$"):
@@ -92,4 +93,3 @@ def run_smbget(ctx, ip, share="IPC$"):
     except Exception as e:
         log_error(f"smbget execution error: {e}")
         print(f"{YELLOW}---------------------------------{RESET}\n")
-
