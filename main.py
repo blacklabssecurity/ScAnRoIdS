@@ -220,6 +220,7 @@ def main():
         if mode == 'r':
             ctx = get_session_selection()
             if ctx:
+                #ctx.operator = get_operator()   #20MAR Fix
                 # Pre-Flight Re-hydration
                 total_hosts, total_svcs = pre_flight_check(ctx)
 
@@ -235,6 +236,7 @@ def main():
         elif mode == 'n':
             customer = log_question("Enter Customer Name:")
             ctx = ScanContext(customer)
+            #ctx.operator = get_operator()   #20MAR Fix
             log_note(f"Formats: {YELLOW}10.0.0.0/24, IP, or -iL <file>{RESET}")
             targets = log_question("Enter Initial Scan Target(s):")
 
