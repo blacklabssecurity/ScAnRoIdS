@@ -1,3 +1,10 @@
+/* 
+Project: ScAnRoIdS Red Team Orchestrator
+Module: web/templates/dashboard.html
+Purpose: Main dashboard view to summarize scan results, provide 
+         access to external tool findings and provide visual 
+         feedback to the operator for quick summarization/actionable steps.
+*/
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,12 +21,12 @@
         <div class="container-fluid">
             <span class="navbar-brand fw-bold">
                 <div class="heartbeat {{ 'pulse-green' if heartbeat else 'static-red' }}"></div>
-                SCANROIDS ORCHESTRATOR <small class="text-muted ms-2">| {{ meta.customer }}</small>
+                SCANROIDS ORCHESTRATOR <small class="text-muted ms-2">| <strong>Customer:</strong> {{ meta.customer }}</small>
             </span>
             <div class="d-flex align-items-center gap-4 small text-uppercase">
                 <div>Total Targets: <span class="text-info fw-bold">{{ results|map(attribute='ip')|unique|list|length }}</span></div>
                 <div>Services: <span class="text-info fw-bold">{{ results|length }}</span></div>
-                <a href="http://127.0.0.1:8889" target="_blank" class="btn btn-sm btn-outline-secondary py-0">Gowitness Gallery</a>
+                <a href="http://127.0.0.1:8889" target="_blank" class="btn btn-sm btn-outline-green py-0">Gowitness Gallery</a>
                 <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger py-0">Logout</a>
             </div>
         </div>
@@ -53,13 +60,13 @@
                     <table id="resultsTable" class="table table-dark table-hover align-middle small w-100">
                         <thead>
                             <tr class="text-muted x-small text-uppercase">
-                                <th>IP Address</th>
-                                <th>OS</th>
-                                <th>Port</th>
-                                <th>Service</th>
-                                <th>Reason</th>
-                                <th>TTL / Hops</th>
-                                <th>Likely Services</th>
+                                <th><span class="header-pipe">|</span> IP ADDRESS <span class="header-pipe">|</span></th>
+                                <th> OS <span class="header-pipe">|</span></th>
+                                <th> PORT <span class="header-pipe">|</span></th>
+                                <th> SERVICE <span class="header-pipe">|</span></th>
+                                <th> REASON <span class="header-pipe">|</span></th>
+                                <th> TTL / HOPS <span class="header-pipe">|</span></th>
+                                <th> LIKELY SERVICES <span class="header-pipe">|</span></th>
                             </tr>
                         </thead>
                         <tbody>
