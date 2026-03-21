@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+"""
+Project: Scanroids Red Team Orchestrator
+Module:  nfs_enum.py
+Purpose: Surgical RPC (111) and NFS (2049) enumeration module.
+         Performs Portmapper queries, Export discovery, and conditional looting.
+"""
+
 import time
 import subprocess
 from config import GREEDY_MODE
@@ -9,13 +17,6 @@ from core.system import INTERFACE
 
 
 def run_nfs_enum(ctx, ip, choice):
-    """
-    Project: Scanroids Red Team Orchestrator
-    Module:  nfs_enum.py
-    Purpose: Surgical RPC (111) and NFS (2049) enumeration module.
-             Performs Portmapper queries, Export discovery, and conditional looting.
-    """
-
     # 1. Setup Naming and Paths
     file_base = f"nfs_audit_{ctx.customer}_{ip.replace('.','-')}_{ctx.date_str}_{ctx.time_str}"
     pcap_path = ctx.dirs['pcap'] / f"{file_base}.pcapng"
