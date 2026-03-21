@@ -117,7 +117,7 @@ def get_banner():
     36. SCADA/ICS ..............[N]: Modbus, S7, BACnet, MQTT, Ethernet/IP
 
  [ EXTENDED SCANNING & AUDITS - PHASE 2 ONLY ]
-    40. Aggressive Audit .......[N]: Scripts (-sC) and Versioning (-sV) (only Discovered Hosts/Ports)
+    40. Aggressive Audit .......[N]: Scripts and Intense Versioning (Focus on Discovered Hosts/Ports)
     41. Anti-Throttling ........[S]: Slow & Steady (T2) with Randomized Targets
     42. Kitchen Sink ...........[N]: All Ports -p-
 
@@ -275,75 +275,68 @@ SCAN_LIBRARY = {
         "name": "Top 1K Discovery",
         "category": "[N]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sS: Syn Scan only (no proxy support)
         # -- Top Ports 1000 (Default Top 1k ports)
         # --max-retries 0: Avoid delays on filtered ports
-        "flags": "-Pn -n -vv -sS --top-ports 1000 --max-retries 1"
+        "flags": "-n -vv -sS --top-ports 1000 --max-retries 1"
     },
     "31": {
         "name": "Windows Discovery",
         "category": "[P]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sT: Full TCP Connect scan {proxy friendly)
         # smb-os-discovery: If 445 is open ,this is a low cost/high value script
-        "flags": f"-Pn -n -vv -sT -p {get_p(WINDOWS_PORTS)} --script smb-os-discovery"
+        "flags": f"-n -vv -sT -p {get_p(WINDOWS_PORTS)} --script smb-os-discovery"
     },
     "32": {
         "name": "Linux Discovery",
         "category": "[P]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sT: Full TCP Connect scan {proxy friendly)
         # ssh-hostkey: Provides value at 0 additional noise
-        "flags": f"-Pn -n -vv -sT -p {get_p(LINUX_PORTS)} --script ssh-hostkey"
+        "flags": f"-n -vv -sT -p {get_p(LINUX_PORTS)} --script ssh-hostkey"
     },
     "33": {
         "name": "Web Discovery",
         "category": "[P]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sT: Full TCP Connect scan {proxy friendly)
         # http-title: Pulls Tag Title of page
         # http-headers: Pulls header of web server
         # max-parallelism: Wait for slow timeouts with web
-        "flags": f"-Pn -n -vv -sT -p {get_p(WEB_PORTS)} --script http-title,http-headers,http-methods,http-enum --max-parallelism 20"
+        "flags": f"-n -vv -sT -p {get_p(WEB_PORTS)} --script http-title,http-headers,http-methods,http-enum --max-parallelism 20"
     },
     "34": {
         "name": "MGMT Ports",
         "category": "[N]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sS: Syn Scan only (no proxy support)
-        "flags": f"-Pn -n -vv -sS -p {get_p(list(set(MGMT_TCP + MGMT_UDP)))}"
+        "flags": f"-n -vv -sS -p {get_p(list(set(MGMT_TCP + MGMT_UDP)))}"
     },
     "35": {
         "name": "Database Discovery",
         "category": "[P]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sT: Full TCP Connect scan {proxy friendly)
         # banner: Safe technique bor DB banner retrieval
-        "flags": f"-Pn -n -vv -sT -p {get_p(DB_TCP)} --script banner"
+        "flags": f"-n -vv -sT -p {get_p(DB_TCP)} --script banner"
     },
     "36": {
         "name": "SCADA/ICS",
         "category": "[N]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sS: Syn Scan only (no proxy support)
@@ -352,13 +345,12 @@ SCAN_LIBRARY = {
         # s7-info: metadata pull (port T:102)
         # enip-info: List identity request (port T:44818)
         # bacnet-info: ReadPoooroperty request (port U:47808)
-        "flags": f"-Pn -n -vv -sS -T2 -p {get_p(list(set(SCADA_TCP + SCADA_UDP)))} --max-retries 1 --script modbus-discover,s7-info,enip-info,bacnet-info"
+        "flags": f"-n -vv -sS -T2 -p {get_p(list(set(SCADA_TCP + SCADA_UDP)))} --max-retries 1 --script modbus-discover,s7-info,enip-info,bacnet-info"
     },
     "37": {
         "name": "Anti-Throttling",
         "category": "[S]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sT: Full TCP Connect scan {IDS / IPS firendly)
@@ -367,42 +359,39 @@ SCAN_LIBRARY = {
         # host-time: Timeout of probe wait
         # max-retries: Maximum retry attempts for host interaction
         # randomize-hosts: randomize the target device to be probed
-        "flags": "-Pn -n -vv -sT -T2 --scan-delay 1s --data-length 24 --host-timeout 5m --max-retries 1 --randomize-hosts"
+        "flags": "-n -vv -sT -T2 --scan-delay 1s --data-length 24 --host-timeout 5m --max-retries 1 --randomize-hosts"
     },
     "38": {
         "name": "Kitchen Sink",
         "category": "[N]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -sS: Syn Scan only (no proxy support)
         # min-rate: send atleast X number of packets per sec
         # max-rtt-timeout: timeout before moving on
         # max-retries: Maximum retry attempts for host interaction
-        "flags": "-Pn -n -vv -sS -p- -T4 --min-rate 1000 --max-retries 1 --max-rtt-timeout 200ms"
+        "flags": "-n -vv -sS -p- -T4 --min-rate 1000 --max-retries 1 --max-rtt-timeout 200ms"
     },
     "40": {
         "name": "Full Audit (Host-by-Host)",
         "category": "[N]",
         "phases": [2],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -A: OS (-O), versioning (-sV @ 7), safe scrits (-sC) and traceroute
-        "flags": "-Pn -n -vv -A",
+        "flags": "-n -vv -sV --version-all -sC --script 'vuln,auth,default,discovery' --reason --script-trace",
     },
     "50": {
         "name": "Auto-Zombie Hunter",
         "category": "[S]",
         "phases": [1],
-        # -Pn: No Ping
         # -n: No DNS Lookup
         # -vv: Increased verbosity
         # -p: only single port required open or closed
         # max-retries: Maximum retry attempts for host interaction
         # --script ipidseq: Specifically flags Idle Scan candidates
-        "flags": f"-Pn -n -v -O -p20-23,80,443,445,515,631,9100-9102",
+        "flags": f"-n -v -O -p20-23,80,443,445,515,631,9100-9102",
     },
     "51": {
         "name": "Firewalk Discovery",
