@@ -2,6 +2,9 @@
 """
 Project: Scanroids Red Team Orchestrator
 Module:  modules/gowitness.py
+Purpose: Monitors scan results for positive findings of web based services.
+Once identified, the host and service ports are "witnessed" and artifacts 
+colleccted/recorded. Launches dashboard on port 8889
 """
 
 import subprocess
