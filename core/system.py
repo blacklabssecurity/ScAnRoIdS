@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/system.py
 Purpose: Gathers system-level telemetry, identifies the real operator, 
          maps network interfaces, and tracks VPN connection states.
