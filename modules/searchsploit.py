@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  modules/searchsploit.py
 Purpose: Automated exploit mapping based on Nmap service/kernel strings.
 """
