@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Project: Scanroids Red Team Orchestrator
 Module:  core/database.py
@@ -41,7 +42,7 @@ def init_db(ctx):
             INSERT INTO session_info (id, operator, customer, start_time, nmap_syntax, scan_phase, status, artifact_dir)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            1, ctx.operator, ctx.customer, 
+            1, ctx.operator, ctx.customer,
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Awaiting Tasking...", "N/A", "System Ready / Idle", str(ctx.dirs['artifacts'])
         ))
