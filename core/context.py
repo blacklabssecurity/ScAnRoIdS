@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/context.py
 Purpose: Handles session initialization and "Adoption" of existing session 
          directories to support resumption of audits and dashboards.
