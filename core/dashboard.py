@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/dashboard.py
 Purpose: Flask web engine for the ScanRoids Dashboard.
 """
