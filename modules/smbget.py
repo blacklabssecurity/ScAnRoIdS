@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  modules/searchsploit.py
 Purpose: Interactive SMB Looting module. 
          Allows operator to target specific shares for recursive downloads.
