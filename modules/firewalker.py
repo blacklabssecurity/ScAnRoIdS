@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  modules/firewalker.py
 Purpose: Tool to stage firewalking efforts against a specified single target.
          Stage 1 gathers the ttl to the destination while stage 2 attempts to 
