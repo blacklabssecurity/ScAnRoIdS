@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  nfs_enum.py
 Purpose: Surgical RPC (111) and NFS (2049) enumeration module.
          Performs Portmapper queries, Export discovery, and conditional looting.
