@@ -1,4 +1,4 @@
-#./scanroids/core/dashboard.py
+#!/usr/bin/env python3
 """
 Project: Scanroids Red Team Orchestrator
 Module:  core/dashboard.py
