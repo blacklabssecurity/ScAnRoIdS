@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  modules/enum4linux.py
 Purpose: Gathers system and environemntal details of Windows hosts
         through either surgical OR greedy/aggressive tool usage. 
