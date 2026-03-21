@@ -9,6 +9,7 @@ Purpose: Handles session initialization and "Adoption" of existing session
 import os
 import datetime
 from pathlib import Path
+from core.system import get_operator
 from core.ui import (
     log_task, log_success, log_error,
     log_note, YELLOW, BLUE, RED, CYAN,
@@ -23,6 +24,7 @@ class ScanContext:
         :param resume_path: If provided, 'Adopts' this existing directory.
         """
         self.customer = customer_name.strip().replace(" ", "_")
+        self.operator = get_operator() 
 
         if resume_path:
             # --- ADOPT MODE ---
