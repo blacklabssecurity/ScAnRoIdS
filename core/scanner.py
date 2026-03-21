@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/scanner.py
 Purpose: Orchestrates the simultaneous execution of Tshark packet capture 
          and Nmap scanning with real-time command echoing and terminal feedback.
