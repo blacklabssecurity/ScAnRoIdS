@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/database.py
 Purpose: Persistent storage engine for session metadata and scan results. 
          Manages the SQLite schema, OS/TTL fingerprinting logic, and 
