@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/ui.py
 Purpose: Centralizes terminal user interface elements, including ANSI color 
          standardization, standardized logging prefixes, and screen management.
