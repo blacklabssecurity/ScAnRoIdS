@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+"""
+Project: ScAnRoIdS Red Team Orchestrator
+Module: modules/snmp_footprints.py
+Purpose: Two-Stage SNMP Interrogation:
+         1. Brute/Verify Community String (onesixtyone)
+         2. Deep Interrogation (snmp-check)
+"""
+
 import subprocess
 import time
 from config import GREEDY_MODE
@@ -9,12 +18,6 @@ from core.system import INTERFACE
 
 
 def run_snmp_enum(ctx, ip):
-    """
-    Two-Stage SNMP Interrogation:
-    1. Brute/Verify Community String (onesixtyone)
-    2. Deep Interrogation (snmp-check)
-    """
-
     # 1. Setup Naming and Paths
     file_base = f"snmp_audit_{ctx.customer}_{ip.replace('.','-')}_{ctx.date_str}_{ctx.time_str}"
     pcap_path = ctx.dirs['pcap'] / f"{file_base}.pcapng"
