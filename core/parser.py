@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: Scanroids Red Team Orchestrator
+Project: ScAnRoIdS Red Team Orchestrator
 Module:  core/parser.py
 Purpose: Tiered parsing for Nmap results. Attempts XML first for detail, 
          pivots to Grepable (.gnmap) if XML is corrupted or truncated.
