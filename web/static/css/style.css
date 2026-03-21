@@ -1,4 +1,8 @@
-/* ScanRoids Dashboard - Dark Mode Theme */
+/* 
+Project: ScAnRoIdS Red Team Orchestrator
+Module: web/static/css/style.css
+Purpose: ScanRoids Dashboard - Dark Mode with Matrix Green Theme
+*/
 :root {
     --bg-dark: #0f0f0f;
     --card-bg: #1a1a1a;
@@ -17,6 +21,36 @@ body {
 .card {
     background-color: var(--card-bg);
     border: 1px solid #333;
+}
+
+/* Custom Neon Green Button for Gowitness */
+.btn-outline-green {
+    color: var(--status-green) !important;
+    border: 1px solid var(--status-green) !important;
+    background-color: transparent;
+    transition: all 0.3s ease-in-out;
+}
+
+.btn-outline-green:hover {
+    background-color: rgba(0, 255, 0, 0.05); /* Very slight green tint */
+    color: var(--status-green) !important;
+    text-shadow: 0 0 8px var(--status-green); /* Text glows */
+    box-shadow: inset 0 0 10px var(--status-green), 0 0 15px var(--status-green); /* Inner and outer glow */
+    border-color: var(--status-green);
+}
+
+/* Pipe Styling for Table Headers */
+.header-pipe {
+    color: var(--status-green);
+    font-weight: bold;
+    padding: 0 5px;
+}
+
+/* Ensure table headers are uppercase and clean */
+thead th {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #333 !important;
 }
 
 /* Heartbeat Animation Logic */
