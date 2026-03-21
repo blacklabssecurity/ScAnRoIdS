@@ -146,38 +146,42 @@ def deploy_scan(ctx, targets, scan_meta, phase_num, choice):
     # Scan 31: Windows Discovery (TCP) Scan
     elif choice == "31":
         ip_bpf = nmap_to_bpf(targets)
-        port_bpf = get_p(WINDOWS_PORTS).replace(',', ' or port ')
+        port_bpf = " or tcp port ".join(LINUX_PORTS)
         cap_filter = f"({ip_bpf}) and (tcp port {port_bpf})"
         log_note("Tshark Filter: Isolating Windows RPC/SMB/RDP traffic.")
 
     # Scan 32: Linux Discovery (TCP) Scan
     elif choice == "32": 
         ip_bpf = nmap_to_bpf(targets)
-        port_bpf = get_p(LINUX_PORTS).replace(',', ' or port ')
+        port_bpf = " or tcp port ".join(LINUX_PORTS)
         cap_filter = f"({ip_bpf}) and (tcp port {port_bpf})"
         log_note("Tshark Filter: Isolating Core Linux traffic.")
+        log_note(f"Wireshark filter: {RESET}'tcp.port in {{{','.join(MGMT_TCP)}}} || udp.port in {{{','.join(MGMT_UDP)}}}'")
+
 
     # Scan 33: Web Discovery Scan
     elif choice == "33": # Web
         ip_bpf = nmap_to_bpf(targets)
-        port_bpf = get_p(WEB_PORTS).replace(',', ' or port ')
+        port_bpf = " or tcp port ".join(WEB_PORTS)
         cap_filter = f"({ip_bpf}) and (tcp port {port_bpf})"
         log_note("Tshark Filter: Isolating HTTP/S traffic.")
+        log_note(f"Wireshark filter: {RESET}'tcp.port in {{{','.join(WEB_PORTS)}}}'")
 
     # Scan 34: Mgmt Discovery (TCP & UDP) Scan
     elif choice == "34":
         # 1. Combine both registries into one list of strings and remove duplicates (set)
         ip_bpf = nmap_to_bpf(targets)
-        all_mgmt = set(MGMT_TCP + MGMT_UDP)
-        port_bpf = " or port ".join([str(p) for p in all_mgmt])
-        cap_filter = f"({ip_bpf}) and (port {port_bpf})"
-        log_note(f"Tshark Filter: Isolating MGMT traffic ({len(all_mgmt)} ports).")
-        log_note(f"Wireshark filter: {RESET}'tcp.port in {{{get_p(MGMT_TCP)}}} || udp.port in {{{get_p(MGMT_UDP)}}}'")
+        tcp_str = " or ".join(MGMT_TCP)
+        udp_str = " or ".join(MGMT_UDP)
+        # Combine them into a single filter string
+        cap_filter = f"({ip_bpf}) and ((tcp port {tcp_str}) or (udp port {udp_str}))"
+        log_note(f"Tshark Filter: Isolating MGMT traffic ports.")
+        log_note(f"Wireshark filter: {RESET}'tcp.port in {{{','.join(MGMT_TCP)}}} || udp.port in {{{','.join(MGMT_UDP)}}}'")
 
     # Scan 35: DB Discovery (TCP) Scan
     elif choice == "35":
         ip_bpf = nmap_to_bpf(targets)
-        port_bpf = get_p(DB_TCP).replace(',', ' or port ')
+        port_bpf = " or tcp port ".join(DB_TCP)
         cap_filter = f"({ip_bpf}) and (tcp port {port_bpf})"
         log_note("Tshark Filter: Isolating Database traffic.")
 
@@ -185,9 +189,11 @@ def deploy_scan(ctx, targets, scan_meta, phase_num, choice):
     elif choice == "36":
         # Capture both TCP and UDP for SCADA safety
         ip_bpf = nmap_to_bpf(targets)
-        all_scada = set(SCADA_TCP + SCADA_UDP)
-        port_bpf = " or port ".join([str(p) for p in all_scada])
-        cap_filter = f"({ip_bpf}) and (port {port_bpf})"
+        # Join the lists with ' or '
+        tcp_str = " or ".join(SCADA_TCP)
+        udp_str = " or ".join(SCADA_UDP)
+        # Combine them into a single filter string
+        cap_filter = f"({ip_bpf}) and ((tcp port {tcp_str}) or (udp port {udp_str}))"
         log_note("Tshark Filter: Isolating SCADA/ICS traffic.")
 
     # Scan 50: Auto-Zombie Hunter (IPID Sequence Analysis)
