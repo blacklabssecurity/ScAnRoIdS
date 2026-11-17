@@ -121,6 +121,7 @@ def nmap_to_bpf(targets):
 def dependencies():
     commands = (
         "nmap",
+        "dumpcap",
         "tshark",
         "ip",
         "gowitness",

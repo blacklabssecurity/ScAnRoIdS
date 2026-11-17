@@ -28,3 +28,7 @@ The supplied design takes precedence over the previous GitHub behavior. Terminal
 ## Validation
 
 See `docs/VALIDATION.md` for exact checks and limits. A synthetic dashboard screenshot is included under `docs/images/`; it contains documentation-range addresses, not a real assessment.
+
+## Capture startup compatibility fix
+
+Live capture now invokes `dumpcap` directly, rather than `tshark`. This avoids loading Tshark protocol/dissector plugins, including incompatible optional plugins that can abort startup with undefined-symbol errors. Dependency diagnostics distinguish dumpcap capture from Tshark offline analysis. Root/raw-socket requirements for Nmap are unchanged. Regression tests cover failed startup, successful capture lifecycle and dependency selection; live interface permissions still require validation on the lab machine.

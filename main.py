@@ -430,7 +430,7 @@ def run(args):
         for name, path in dependencies().items():
             print(f"{name:16} {path or 'NOT INSTALLED'}")
         print(
-            "\nRequired for scanning: nmap; for capture: tshark + iproute2.\nPython requirements: requirements.txt. Optional tools: docs/TOOLS.md."
+            "\nRequired for scanning: nmap; for capture: dumpcap + iproute2.\nPython requirements: requirements.txt. Optional tools: docs/TOOLS.md."
         )
         return 0
     if args.list_scans:

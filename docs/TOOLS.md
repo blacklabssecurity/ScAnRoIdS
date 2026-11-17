@@ -6,7 +6,8 @@ The application requires **Python 3.11 or newer** on Linux. Kali 2026.2 and cust
 |---|---|---|
 | Python environment | `python3`, venv/pip | `python3`, `python3-venv` |
 | Scan engine | `nmap` | `nmap` |
-| Packet capture and offline inspection | `tshark`, `capinfos` | `tshark`, `wireshark-common` |
+| Live packet capture | `dumpcap` | `wireshark-common` |
+| Offline packet inspection | `tshark`, `capinfos` | `tshark`, `wireshark-common` |
 | Interface discovery | `ip` | `iproute2` |
 | Web screenshots | `gowitness`, compatible Chrome/Chromium | `gowitness`, `chromium` |
 | Exploit reference lookup | `searchsploit` | `exploitdb` on Kali |
@@ -19,7 +20,7 @@ The application requires **Python 3.11 or newer** on Linux. Kali 2026.2 and cust
 | HTTP content discovery | `gobuster` | `gobuster` |
 | Proxy-connected TCP profiles | `proxychains4` | `proxychains4` |
 
-Only Nmap is needed for scans. Tshark and a usable interface are required when capture is enabled (the default). Other integrations are optional: unavailable tools are skipped with a diagnostic and do not erase scan results. Viewing or importing scans does not require Nmap, capture privileges or external tools.
+Only Nmap is needed for scans. Dumpcap and a usable interface are required when capture is enabled (the default). Other integrations are optional: unavailable tools are skipped with a diagnostic and do not erase scan results. Viewing or importing scans does not require Nmap, capture privileges or external tools.
 
 Python runtime dependencies are Flask and Waitress, with their transitive dependencies. `requirements.txt` specifies supported version ranges; `requirements-lock.txt` records the exact environment used for validation. No JavaScript CDN, npm build step, external database or Redis service is needed.
 
@@ -59,3 +60,11 @@ gowitness report server --host 127.0.0.1 --port 8889 --db-uri sqlite://gowitness
 ```
 
 The native dashboard gallery avoids separate authentication for remote viewers.
+
+## Capture startup and Tshark plugin failures
+
+Live captures use `dumpcap`, Wireshark's dedicated capture utility. Nmap may still require sudo for raw scan techniques, while dumpcap captures packets without loading Tshark's protocol/dissector plugins. A warning that an application is running as root is not by itself a capture failure.
+
+A Tshark startup message such as `Couldn't load ... falco ... undefined symbol ...` instead indicates a plugin/shared-library compatibility problem. The live-capture path avoids that plugin dependency. Offline Tshark analysis still requires a consistent Wireshark/plugin/library installation; align those packages with the repositories used by your Kali/custom Debian build.
+
+Check capture availability using `command -v dumpcap` and `sudo dumpcap -D`. Check the separate analysis installation with `tshark --version`. For non-root capture, Debian/Kali can configure dumpcap permissions through `sudo dpkg-reconfigure wireshark-common` and membership in the `wireshark` group; a new login is needed after group membership changes. This does not grant Nmap raw-socket privileges or access to root-owned session directories.

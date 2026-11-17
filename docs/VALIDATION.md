@@ -4,12 +4,12 @@ Validated in a Debian 13 execution environment using Python 3.12. Python 3.11 co
 
 ## Automated checks
 
-**57 tests passed**, including the optional checks below:
+**59 tests passed**, including the optional checks below:
 
 - Nmap XML and GNMAP import, IPv6 address selection, discovery-only hosts, missing TTL, explicit closed/open|filtered states, malformed XML fallback and unchanged state on failed import.
 - Repeated imports, history retention, legacy database backup/deduplication, session resumption, complete domain-controller port matching and sanitized service paths.
 - Exact menu IDs, command argument quoting, input-file expansion, managed output/scope protection, transport-specific audit plans and capture filters.
-- Real local subprocess output/error streaming, nonzero exits, quiet-process timeout, cancellation/reaping, unavailable commands, capture startup failure, bounded log rotation.
+- Real local subprocess output/error streaming, nonzero exits, quiet-process timeout, cancellation/reaping, unavailable commands, capture startup failure, successful dumpcap startup/finalization with a controlled stub, dumpcap-specific dependency checks, bounded log rotation.
 - Viewer login/CSRF, anonymous access denial, file containment/symlinks, absence of HTTP scan-control routes, event replay, stale heartbeat, logout and evidence-derived topology.
 - SMB adapter eligibility, SNMP single-community file handling and session comparisons.
 - **Real Nmap 7.95**: a TCP connect scan against a temporary HTTP service bound to **127.0.0.1 only**, verifying process state, -oA artifact production and import of the observed open port. The test deliberately bypasses self-exclusion only inside the test; production retains self-exclusion.

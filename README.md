@@ -6,7 +6,7 @@ An instructor-controlled network discovery and audit workspace for Kali Linux an
 
 ## Install and check dependencies
 
-Requires Python 3.11+, Nmap, and Tshark when capture is enabled. Optional tools are listed with their executable/package names in [Tools and installation](docs/TOOLS.md).
+Requires Python 3.11+, Nmap, and dumpcap when capture is enabled. Optional tools are listed with their executable/package names in [Tools and installation](docs/TOOLS.md).
 
 ```bash
 ./setup_scanRoids.sh

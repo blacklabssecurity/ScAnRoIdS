@@ -96,8 +96,10 @@ def validate_flags(flags):
 def preflight(flags, ctx, scripts=(), proxy=False):
     if not shutil.which("nmap"):
         raise ValueError("Nmap is missing; run --doctor for required tools")
-    if ctx.capture and not shutil.which("tshark"):
-        raise ValueError("Tshark is missing; install it or explicitly use --no-capture")
+    if ctx.capture and not shutil.which("dumpcap"):
+        raise ValueError(
+            "dumpcap is missing; install wireshark-common or explicitly use --no-capture"
+        )
     raw = any(
         arg in ("-sS", "-sU", "-sY", "-sZ", "-sI", "-sN", "-sX", "-sF", "-O", "-f", "-PR")
         or arg.startswith(("-D", "--spoof-mac", "--scanflags"))

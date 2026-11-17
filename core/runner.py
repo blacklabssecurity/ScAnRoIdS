@@ -187,9 +187,10 @@ def packet_capture(ctx, stem, capture_filter):
         raise ValueError("Select an interface with --interface, or use --no-capture")
     path = ctx.dirs["pcap"] / (stem + ".pcapng")
     log = ctx.dirs["logs"] / (stem + "_capture.log")
+    # dumpcap captures packets without loading Tshark's protocol/epan plugins.
+    # It performs no name resolution, so Tshark's -n option is unnecessary.
     command = [
-        "tshark",
-        "-n",
+        "dumpcap",
         "-i",
         ctx.interface,
         "-w",
