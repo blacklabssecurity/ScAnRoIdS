@@ -1,81 +1,68 @@
 #!/usr/bin/env python3
 """
 Project: ScAnRoIdS Red Team Orchestrator
-Module:  modules/gowitness.py
-Purpose: Monitors scan results for positive findings of web based services.
-         Once identified, the host and service ports are "witnessed" and artifacts 
-         colleccted/recorded. Launches dashboard on port 8889
+Module: modules/gowitness.py
+Purpose: Capture known web endpoints with Gowitness and retain its screenshot/database artifacts.
 """
 
-import subprocess
-import os
-from core.ui import (
-    log_note, log_task, log_success, log_error, 
-    YELLOW, RESET, BLUE, RED, CYAN, MAGENTA
-    )
+import xml.etree.ElementTree as ET
+from config import WEB_PORTS
+from core.runner import identifier
+from modules.tools import execute, services
 
 
-def run_gowitness_scan(ctx, xml_path):
-    """
-    Runs Gowitness scan ensuring screenshots are saved as a subdirectory 
-    of where the SQLite database is stored (artifacts/).
-    """
-    # 1. Define paths relative to the 'artifacts' folder
-    # This ensures the DB records paths like 'screenshots/image.png'
-    db_name = "gowitness.sqlite3"
-    screenshot_dir = "screenshots"
-
-    gowitness_cmd = [
-        "gowitness", "scan", "nmap",
-        "-f", str(xml_path.absolute()), # Absolute path to Nmap XML
-        "-s", screenshot_dir,           # Relative to artifacts/
-        "--screenshot-format", "png",
-        "--write-db",
-        "--write-db-uri", f"sqlite://{db_name}",
-        "--write-screenshots",
-        "--threads", "4"
+def run_gowitness_scan(ctx, xml_path=None):
+    # A filtered XML prevents Gowitness from sweeping unrelated ports in the
+    # original Nmap file. The adapter targets only confirmed HTTP(S) services.
+    rows = [
+        r
+        for r in services(ctx)
+        if r["protocol"] == "tcp"
+        and (r["port"] in WEB_PORTS or "http" in (r["service"] or "").lower())
     ]
-
-    print(f"\n{YELLOW}--- [ WEB SCREENSHOT PHASE ] ---{RESET}")
-    log_task(f"Executing Gowitness: {' '.join(gowitness_cmd)}")
-
-    try:
-        # CRITICAL: We run the command FROM the artifacts directory.
-        # This forces the DB to store paths relative to itself.
-        subprocess.run(gowitness_cmd, check=True, cwd=ctx.dirs['artifacts'])
-        log_success("Web screenshots captured and linked in artifacts/screenshots/")
-    except subprocess.CalledProcessError as e:
-        log_error(f"Gowitness scan failed: {e}")
-        print(f"{RED}--------------------------------{RESET}\n")
-
-
-def start_gowitness_server(ctx):
-    """
-    Starts the server from the artifacts directory to resolve image paths.
-    """
-    db_name = "gowitness.sqlite3"
-
-    server_cmd = [
-        "gowitness", "report", "server",
-        "--host", "0.0.0.0",
-        "--port", "8889",
-        "--db-uri", f"sqlite://{db_name}"
-    ]
-
-    log_task(f"Starting Gowitness Server: {' '.join(server_cmd)}")
-
-    try:
-        # The server must run from artifacts/ to see the screenshots/ folder
-        proc = subprocess.Popen(
-            server_cmd, 
-            stdout=subprocess.DEVNULL, 
-            stderr=subprocess.DEVNULL,
-            cwd=ctx.dirs['artifacts']
-        )
-        log_success("Gowitness gallery live at http://0.0.0.0:8889")
-        print(f"{YELLOW}--------------------------------{RESET}\n")
-        return proc
-    except Exception as e:
-        log_error(f"Failed to start Gowitness server: {e}")
-        print(f"{RED}--------------------------------{RESET}\n")
+    if not rows:
         return None
+    root = ET.Element("nmaprun")
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row["ip"], []).append(row)
+    for ip, host_rows in grouped.items():
+        host = ET.SubElement(root, "host")
+        ET.SubElement(host, "status", state="up")
+        ET.SubElement(host, "address", addr=ip, addrtype="ipv6" if ":" in ip else "ipv4")
+        ports = ET.SubElement(host, "ports")
+        for row in host_rows:
+            port = ET.SubElement(ports, "port", protocol="tcp", portid=str(row["port"]))
+            ET.SubElement(port, "state", state="open")
+            # Unknown services on registered web ports get an explicit scheme hint.
+            attrs = {"name": "http"}
+            if "ssl" in row["service"] or row["port"] in (443, 4443, 8443, 9443):
+                attrs["tunnel"] = "ssl"
+            ET.SubElement(port, "service", **attrs)
+    source = ctx.dirs["artifacts"] / f"gowitness_targets_{identifier()}.xml"
+    ET.ElementTree(root).write(source, encoding="utf-8", xml_declaration=True)
+    snapshots = ctx.dirs["artifacts"] / "screenshots"
+    snapshots.mkdir(exist_ok=True)
+    command = [
+        "gowitness",
+        "scan",
+        "nmap",
+        "-f",
+        str(source),
+        "-s",
+        str(snapshots),
+        "--write-db",
+        "--write-db-uri",
+        "sqlite://gowitness.sqlite3",
+        "--threads",
+        "4",
+    ]
+    # Gowitness 3.x syntax supplied in the design. An incompatible version
+    # produces a failed job and its diagnostic output, rather than false success.
+    return execute(ctx, command, ip=list(grouped), timeout=900, cwd=ctx.dirs["artifacts"])
+
+
+"""
+INPUT: Confirmed web services from the session database.
+OUTPUT: Gowitness SQLite database, screenshot directory and execution log.
+"""

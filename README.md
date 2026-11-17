@@ -1,43 +1,94 @@
+# ScAnRoIdS
 
-# ScAnRoIdS 🛡️
+An instructor-controlled network discovery and audit workspace for Kali Linux and custom Debian training builds. Start and stop scans in the terminal; authenticated viewers on the same LAN follow results, logs and evidence in their browsers.
 
-**ScAnRoIdS** is a modular Python wrapper for Nmap, designed to simplify network scanning and security auditing. It programmatically executes Nmap commands and parses XML output into usable Python data structures.
+![ScAnRoIdS dashboard with synthetic training data](docs/images/dashboard.png)
 
-## Features
-* **Automated Scanning**: Trigger Nmap scans directly from Python scripts.
-* **XML Parsing**: Automatically converts Nmap's XML output into clean, structured data.
-* **Extensive Presets**: Easily configure and reuse scan parameters.
+## Install and check dependencies
 
-## Prerequisites (Kali Friendly)
-* [Python 3.x](https://www.python.org)
-* [Nmap](https://www.kali.org/tools/nmap/) (Must be installed and in your system PATH)
-* [searchsploit](https://www.exploit-db.com/searchsploit) (Must be installed and in your system PATH)
-* [gowitness](https://github.com/sensepost/gowitness/wiki/Installation) (Must be installed and in your system PATH)
-* [enum4linux](https://github.com/CiscoCXSecurity/enum4linux) (Must be installed and in your system PATH)
-* [smbget](https://www.kali.org/tools/samba/) (Must be installed and in your system PATH)
-* [snmpcheck](https://www.kali.org/tools/snmpcheck/) (Must be installed and in your system PATH)
-* [onesixtyone](https://www.kali.org/tools/onesixtyone/) (Must be installed and in your system PATH)
-* [showmount](https://pkgs.org/download/nfs-common) (Must be installed and in your system PATH)
-* [rpcinfo]() (Must be installed and in your system PATH)
-* [gobuster](https://www.kali.org/tools/gobuster/) (Must be installed and in your system PATH)
+Requires Python 3.11+, Nmap, and Tshark when capture is enabled. Optional tools are listed with their executable/package names in [Tools and installation](docs/TOOLS.md).
 
-## General Hieerarchy
+```bash
+./setup_scanRoids.sh
+.venv/bin/python main.py --doctor
+```
 
-<img width="1354" height="952" alt="image" src="https://github.com/user-attachments/assets/1ee9848d-65f3-423d-bf58-10d1c5dd5571" />
+The setup script creates `.venv` beside the source and installs Python dependencies. You manage system packages. For an exact Python dependency set, install `requirements-lock.txt` instead of the version ranges.
 
+## Start an instructor session
 
+```bash
+sudo .venv/bin/python main.py --customer CourseLab --interface eth0
+```
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/blacklabssecurity/ScAnRoIdS
+The supplied scan menu is preserved. Select an ID and provide an IP, CIDR, IPv4 last-octet range, or `-iL /path/to/hosts.txt`. Discovery, auditing and optional tool offers stay in the terminal. The viewer listens on port 8888. Use the Kali machine's LAN address from other workstations.
 
-## Usage:
-todo
+Default viewer credentials are `operator` / `CourseLab_<current-year>`. Set `SCANROIDS_PASSWORD` to override the password. After a scan, the viewer stays available and the terminal accepts more jobs. Ctrl+C or `q` stops the session and server.
 
-# Example: 
-todo
+Code may live wherever you choose, including `/tools/scripts/ScAnRoIdS`. Session data defaults to `/tools/scans/ScAnRoIdS`; override it with `--data-dir` or `SCANROIDS_DATA_DIR`.
 
+## Import and view a previous scan
 
-## Disclaimer
-This tool is for educational and authorized security testing purposes only. Only scan networks you have explicit permission to audit.
+```bash
+.venv/bin/python main.py --customer PreviousLab --data-dir ./sessions \
+  --import /path/to/discovery.xml --view-only
+```
+
+Repeat `--import` to combine XML/GNMAP files. Viewing and importing need no root privileges or scan tools. Original evidence is retained in the session directory. The read-only dashboard has no scan-control endpoints.
+
+Try the bundled synthetic evidence without scanning anything:
+
+```bash
+.venv/bin/python main.py --customer Demo --data-dir ./sessions \
+  --import tests/fixtures/discovery.xml --view-only
+```
+
+## Resume, plan, and automate
+
+```bash
+# Adopt an existing session without deleting its databases or artifacts.
+.venv/bin/python main.py --resume /path/to/session --view-only
+
+# Inspect command/capture scope without launching any tools.
+.venv/bin/python main.py --customer Plan --data-dir ./sessions \
+  --scan 40 --targets 192.0.2.0/28 --dry-run
+
+# Run one requested scan without prompts, then exit.
+sudo .venv/bin/python main.py --customer CourseLab --interface eth0 \
+  --scan 40 --targets 192.0.2.0/28 --non-interactive --exit-after
+
+# Audit discovered open ports in an existing session, then exit.
+sudo .venv/bin/python main.py --resume /path/to/session --interface eth0 \
+  --scan 50 --non-interactive --exit-after
+
+# Use a course profile; explicit CLI arguments override saved settings.
+.venv/bin/python main.py --customer Plan --data-dir ./sessions \
+  --profile profiles/discovery.json --dry-run
+```
+
+Documentation ranges above are placeholders; substitute your training network. `--audit` continues discovery into an audit. `--include-industrial` explicitly includes discovered ICS ports; `--expand-all-ports` confirms scan 52's expanded scope. `--tools --greedy` runs applicable enumeration adapters automatically in batch mode. Custom phase-2 audit flags use `--scan 99 --phase 2 --flags '...'`.
+
+`--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Run `--help` for all options.
+
+## Teaching and extension
+
+The viewer provides service and host tables, service-specific copy commands, measured route visualization, execution history, a screenshot gallery, artifact downloads and PCAP analysis recipes. Terminal session commands also support offline PCAP analysis and comparisons between saved sessions.
+
+Read [Architecture](docs/ARCHITECTURE.md), [Release notes and limits](docs/RELEASE_NOTES.md), and [Validation](docs/VALIDATION.md) before lab acceptance testing. Each adapter has an individual entry function and uses a shared process/capture/logging layer.
+
+## Tests
+
+```bash
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pytest -q
+.venv/bin/ruff check main.py config.py core modules tests
+.venv/bin/ruff format --check main.py config.py core modules tests
+```
+
+Tests use synthetic scan files and local subprocesses. The optional real Nmap integration runs against a temporary loopback service only:
+
+```bash
+SCANROIDS_NMAP_INTEGRATION=1 .venv/bin/python -m pytest -q tests/test_nmap_integration.py
+```
+
+Use this resource for networks and training systems you are authorized to assess.

@@ -1,0 +1,6 @@
+{
+  "scan": "40",
+  "targets": "192.0.2.0/28",
+  "timeout": 600,
+  "tools": false
+}

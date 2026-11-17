@@ -1,286 +1,356 @@
 #!/usr/bin/env python3
 """
 Project: ScAnRoIdS Red Team Orchestrator
-Module:  core/parser.py
-Purpose: Tiered parsing for Nmap results. Attempts XML first for detail, 
-         pivots to Grepable (.gnmap) if XML is corrupted or truncated.
+Module: core/parser.py
+Purpose: Normalize Nmap XML/GNMAP, retain observations and export reproducible target lists.
 """
 
+import hashlib
+import ipaddress
+import json
+from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from core.ui import (
-    log_task, log_success, log_error, log_warn, 
-    log_note, RESET, YELLOW, BLUE, GREEN, RED, BOLD
+from core.database import connect, init_db, now, update_dc_tags, upsert_service
+
+
+def number(value):
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def os_guess(name, ttl):
+    if name and name != "Unknown":
+        return name
+    if ttl is None or ttl <= 0 or ttl > 255:
+        return "Unknown"
+    # TTL is an observation, not a reliable OS fingerprint. The label remains
+    # explicitly uncertain and does not determine measured network distance.
+    if ttl <= 64:
+        return "Linux/Unix/IoT (TTL estimate)"
+    if ttl <= 128:
+        return "Windows (TTL estimate)"
+    return "Network device/Unix (TTL estimate)"
+
+
+def service_slug(value):
+    return re.sub(r"[^A-Za-z0-9_-]", "_", value or "unknown")[:80] or "unknown"
+
+
+def xml_records(path):
+    """Parse complete XML before committing. MAC addresses never become scan targets."""
+    root = ET.parse(path).getroot()
+    if root.tag != "nmaprun":
+        raise ValueError("Not an Nmap XML document")
+    records = []
+    for host in root.findall("host"):
+        address = next(
+            (
+                a.get("addr")
+                for a in host.findall("address")
+                if a.get("addrtype") in ("ipv4", "ipv6")
+            ),
+            None,
+        )
+        if not address:
+            continue
+        address = str(ipaddress.ip_address(address))
+        status = host.find("status")
+        state = status.get("state", "unknown") if status is not None else "unknown"
+        ttl = number(status.get("reason_ttl")) if status is not None else None
+        if ttl == 0:
+            ttl = None
+        matches = host.findall("os/osmatch")
+        best = max(matches, key=lambda m: number(m.get("accuracy")) or 0) if matches else None
+        name = best.get("name") if best is not None else None
+        distance = host.find("distance")
+        # Measured Nmap distance only; observed TTL is not a measured hop count.
+        hops = number(distance.get("value")) if distance is not None else None
+        record = dict(
+            ip=address,
+            state=state,
+            os=os_guess(name, ttl),
+            ttl=ttl,
+            hops=hops,
+            hostnames=[n.get("name") for n in host.findall("hostnames/hostname") if n.get("name")],
+            services=[],
+            zombies=[],
+            trace=[dict(h.attrib) for h in host.findall("trace/hop")],
+        )
+        for port in host.findall("ports/port"):
+            pnum, proto = number(port.get("portid")), port.get("protocol")
+            if pnum is None or not 1 <= pnum <= 65535 or proto not in ("tcp", "udp", "sctp"):
+                continue
+            pstate = port.find("state")
+            if pstate is None:
+                continue
+            svc = port.find("service")
+            service = svc.get("name", "unknown") if svc is not None else "unknown"
+            pttl = number(pstate.get("reason_ttl")) or ttl
+            record["services"].append(
+                dict(
+                    ip=address,
+                    os=record["os"],
+                    port=pnum,
+                    protocol=proto,
+                    state=pstate.get("state", "unknown"),
+                    service=service,
+                    reason=pstate.get("reason", ""),
+                    ttl=pttl,
+                    hops=hops,
+                    product=svc.get("product", "") if svc is not None else "",
+                    version=svc.get("version", "") if svc is not None else "",
+                    scripts=[
+                        dict(id=s.get("id", ""), output=s.get("output", ""))
+                        for s in port.findall("script")
+                    ],
+                    service_link=f"{service_slug(service)}_{pnum}_{proto}/hosts_all.txt",
+                )
+            )
+        sequence = host.find("ipidsequence")
+        candidates = [sequence.get("class", "")] if sequence is not None else []
+        candidates += [
+            s.get("output", "")
+            for s in host.findall("hostscript/script")
+            if s.get("id") == "ipidseq"
+        ]
+        record["zombies"] = [s for s in candidates if s.lower().strip() == "incremental"]
+        records.append(record)
+    return records
+
+
+def gnmap_records(path):
+    """GNMAP has less evidence: missing OS/TTL/scripts remain explicitly unknown."""
+    hosts = {}
+    for line in Path(path).read_text(errors="replace").splitlines():
+        match = re.search(r"^Host: (\S+) \((.*?)\)", line)
+        if not match:
+            continue
+        ip = str(ipaddress.ip_address(match[1]))
+        item = hosts.setdefault(
+            ip,
+            dict(
+                ip=ip,
+                state="unknown",
+                os="Unknown",
+                ttl=None,
+                hops=None,
+                hostnames=[],
+                services=[],
+                zombies=[],
+                trace=[],
+            ),
+        )
+        if match[2] and match[2] not in item["hostnames"]:
+            item["hostnames"].append(match[2])
+        status = re.search(r"Status: (\S+)", line)
+        if status:
+            item["state"] = status[1].lower()
+        ports = re.search(r"Ports: (.*?)(?:\t|$)", line)
+        if not ports:
+            continue
+        item["state"] = "up"
+        for entry in ports[1].split(", "):
+            fields = entry.split("/")
+            if len(fields) < 7:
+                continue
+            port, state, proto, _, service, _, product = fields[:7]
+            if (
+                not port.isdigit()
+                or not 1 <= int(port) <= 65535
+                or proto not in ("tcp", "udp", "sctp")
+            ):
+                continue
+            item["services"].append(
+                dict(
+                    ip=ip,
+                    os="Unknown",
+                    port=int(port),
+                    protocol=proto,
+                    state=state,
+                    service=service or "unknown",
+                    reason="",
+                    ttl=None,
+                    hops=None,
+                    product=product,
+                    version="",
+                    scripts=[],
+                    service_link=f"{service_slug(service)}_{port}_{proto}/hosts_all.txt",
+                )
+            )
+    if not hosts:
+        raise ValueError("No Nmap host records found in GNMAP")
+    return list(hosts.values())
+
+
+def import_scan(path, ctx):
+    """Content-addressed, idempotent import. All DB writes happen in one transaction."""
+    path = Path(path)
+    if path.stat().st_size > 256 * 1024 * 1024:
+        raise ValueError("Scan exceeds 256 MB; split the source scan first")
+    records = xml_records(path) if path.suffix.lower() == ".xml" else gnmap_records(path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    db = init_db(ctx)
+    with connect(db) as conn:
+        exists = conn.execute("SELECT 1 FROM imports WHERE digest=?", (digest,)).fetchone()
+        if not exists:
+            conn.execute(
+                "INSERT INTO imports VALUES (?,?,?,?)",
+                (digest, path.name, now(), json.dumps(records)),
+            )
+            for host in records:
+                conn.execute(
+                    """INSERT INTO hosts VALUES (?,?,?,?,?,?,?) ON CONFLICT(ip) DO UPDATE SET
+                    state=excluded.state,os=CASE WHEN excluded.os='Unknown' THEN hosts.os ELSE excluded.os END,
+                    ttl=COALESCE(excluded.ttl,hosts.ttl),hops=COALESCE(excluded.hops,hosts.hops),
+                    hostnames=CASE WHEN excluded.hostnames='[]' THEN hosts.hostnames ELSE excluded.hostnames END,updated=excluded.updated""",
+                    (
+                        host["ip"],
+                        host["state"],
+                        host["os"],
+                        host["ttl"],
+                        host["hops"],
+                        json.dumps(host["hostnames"]),
+                        now(),
+                    ),
+                )
+                for service in host["services"]:
+                    upsert_service(conn, service, digest)
+                if host["state"] == "down":
+                    conn.execute(
+                        "UPDATE scan_results SET state='host-down' WHERE ip=?",
+                        (host["ip"],),
+                    )
+            update_dc_tags(conn)
+    export_targets(ctx)
+    return len({h["ip"] for h in records if h["state"] == "up"}), sum(
+        s["state"] == "open" for h in records if h["state"] == "up" for s in h["services"]
     )
-from config import SCADA_TCP, SCADA_UDP 
+
+
+def _write_list(path, values):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text("".join(v + "\n" for v in sorted(set(values))))
+    temporary.replace(path)
+
+
+def export_targets(ctx):
+    """Rebuild managed exports; stale service lists are emptied, not reused for planning."""
+    from config import SCADA_TCP, SCADA_UDP
+
+    db = init_db(ctx)
+    with connect(db) as conn:
+        hosts = [dict(r) for r in conn.execute("SELECT * FROM hosts WHERE state='up'")]
+        services = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT s.* FROM scan_results s JOIN hosts h ON s.ip=h.ip WHERE s.state='open' AND h.state='up'"
+            )
+        ]
+        imports = [json.loads(r[0]) for r in conn.execute("SELECT records FROM imports")]
+    root = ctx.dirs["targets"]
+    groups = {
+        "hosts_all.txt": [h["ip"] for h in hosts],
+        "hosts_windows.txt": [],
+        "hosts_linux.txt": [],
+        "hosts_OS-unknown.txt": [],
+        "hosts_network.txt": [],
+        "hosts_dnsHostnames.txt": [],
+        "hosts_ip-dns_mappings.txt": [],
+        "zombie_candidates.txt": [],
+    }
+    for host in hosts:
+        os_name = (host["os"] or "Unknown").lower()
+        key = (
+            "hosts_windows.txt"
+            if "windows" in os_name
+            else "hosts_linux.txt"
+            if "linux" in os_name
+            else "hosts_network.txt"
+            if any(s in os_name for s in ("cisco", "network device", "router"))
+            else "hosts_OS-unknown.txt"
+        )
+        groups[key].append(host["ip"])
+        for name in json.loads(host["hostnames"]):
+            groups["hosts_dnsHostnames.txt"].append(name)
+            groups["hosts_ip-dns_mappings.txt"].append(host["ip"] + " | " + name)
+    for records in imports:
+        for host in records:
+            if host.get("zombies"):
+                groups["zombie_candidates.txt"].append(
+                    host["ip"] + " | incremental (candidate; validate before idle scan)"
+                )
+    for service in services:
+        # Legacy records and imported service names never get to select a path.
+        service["service_link"] = (
+            f"{service_slug(service['service'])}_{int(service['port'])}_{service['protocol']}/hosts_all.txt"
+        )
+        groups.setdefault(service["service_link"], []).append(service["ip"])
+        ports = SCADA_UDP if service["protocol"] == "udp" else SCADA_TCP
+        if service["port"] in ports:
+            marker = root / Path(service["service_link"]).parent / "SCADA_LOCK"
+            marker.parent.mkdir(exist_ok=True)
+            marker.write_text(
+                "Industrial service port: explicitly review before version enumeration.\n"
+            )
+    # Only touch files generated by this exporter (never arbitrary operator files).
+    for old in root.glob("*_*_*/hosts_all.txt"):
+        groups.setdefault(old.relative_to(root).as_posix(), [])
+    for relative, values in groups.items():
+        destination = (root / relative).resolve()
+        if not destination.is_relative_to(root.resolve()):
+            raise ValueError("Target export path escaped session")
+        _write_list(destination, values)
 
 
 def parse_results(xml_path, gnmap_path, ctx):
-    print(f"\n{YELLOW}--- [ DATA PARSING PHASE ] ---{RESET}")
-
-    # Initialize counters at this level
-    final_success = False
-    hosts = 0
-    services = 0
-
-    # Attempt Primary XML Parsing
-    # Update: _parse_xml needs to return (success, host_count, svc_count)
-    success, hosts, services = _parse_xml(xml_path, ctx)
-    final_success = success
-
-    if not success:
-        log_warn("XML artifact corrupted. Pivoting to GNMAP fallback...")
-        # Note: GNMAP has limited service data, so services will likely be 0
-        success, hosts, services = _parse_gnmap(gnmap_path, ctx) 
-        final_success = success
-
-    if final_success:
-        _deduplicate_all(ctx.dirs['targets'])
-        print(f"{YELLOW}------------------------------{RESET}\n")
-
-    return final_success, hosts, services
-
-
-def _parse_xml(xml_file, ctx):
-    """Detailed XML Parsing Logic with DNS Mapping support."""
-    host_count = 0
-    svc_count = 0
-    try:
-        log_task(f"Attempting XML Parse: {xml_file.name}")
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-
-        for host in root.findall('host'):
-            # 1. Capture IP and Status
-            status = host.find('status').get('state')
-            ip = host.find('address').get('addr')
-
-            # --- DNS HOSTNAME EXTRACTION ---
-            # We do this BEFORE the 'up' check so we capture names from List Scans (-sL)
-            hostnames_node = host.find('hostnames')
-            if hostnames_node is not None:
-                for hn in hostnames_node.findall('hostname'):
-                    name = hn.get('name')
-                    if name:
-                        map_file = ctx.dirs['targets'] / "hosts_ip-dns_mappings.txt"
-                        _append_dns_map(map_file, ip, name)
-
-            if status == 'up' or "-6" in str(xml_file):
-                host_count += 1
-                addr_node = host.find('address')
-                if addr_node is not None:
-                    ip = addr_node.get('addr')
-                    _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip)
-
-                # SINGLE PORT LOOP (Efficiency for Kitchen Sink)
-                for p in host.findall('.//port'):
-                    svc_count += 1
-                    port_id_str = p.get('portid')
-                    port_id_int = int(port_id_str)
-                    proto = p.get('protocol', 'tcp')
-
-                    svc = p.find('service')
-                    svc_name = svc.get('name') if svc is not None else "unknown"
-
-                    # Define the service directory
-                    svc_dir = ctx.dirs['targets'] / f"{svc_name}_{port_id_str}_{proto}"
-                    svc_dir.mkdir(exist_ok=True)
-                    _append_target(svc_dir / "hosts_all.txt", ip)
-
-                    # --- FRAGILE DEVICE ALERT ---
-                    if port_id_int in SCADA_TCP or port_id_int in SCADA_UDP:
-                        fragile_marker = svc_dir / f"!!!_FRAGILE_{ip.replace('.','-')}_!!!"
-                        if not fragile_marker.exists():
-                            with open(fragile_marker, "w") as f:
-                                f.write(f"ALERT: {ip} port {port_id_int} is SCADA/ICS.")
-                            # Terminal warning for the operator
-                            log_warn(f"FRAGILE DEVICE: {ip} is running SCADA on {port_id_int}/{proto}!")
-
-                # --- ZOMBIE CANDIDATE DETECTION ---
-                seq_class = ""
-
-                # Try Nmap Scripts (ipidseq)
-                for script in host.findall('.//script'):
-                    if script.get('id') == 'ipidseq':
-                        seq_class = script.get('output', '').lower()
-
-                # Try Native OS Engine Tag (ipidsequence)
-                if not seq_class:
-                    ipid_node = host.find('ipidsequence')
-                    if ipid_node is not None:
-                        seq_class = ipid_node.get('class', '').lower()
-
-                # Final Deep Search: Grep the raw .nmap text if XML is "unsure"
-                if not seq_class:
-                    nmap_file = xml_file.with_suffix('.nmap')
-                    if nmap_file.exists():
-                        with open(nmap_file, 'r') as f:
-                            # We look for the IPID line specifically in this host's block
-                            content = f.read()
-                            if ip in content:
-                                match = re.search(r"IP ID Sequence Generation: ([\w\s-]+)", content)
-                                if match:
-                                    seq_class = match.group(1).lower()
-
-                # --- Execute Alert & Looting ---
-                if "incremental" in seq_class:
-                    zombie_file = ctx.dirs['targets'] / "zombie_candidates.txt"
-                    _append_target(zombie_file, f"{ip:<15} | {seq_class.strip()}")
-                    log_success(f"ZOMBIE FOUND: {ip} is UP and PREDICTABLE ({seq_class.strip()}).")
-
-        return True, host_count, svc_count
-    except Exception as e:
-        log_error(f"Parser Error: {e}")
-        return False, 0, 0
-
-
-def _parse_gnmap(gnmap_file, ctx):
-    """Robust Grepable Fallback with host telemetry."""
-    host_count = 0
-    services = 0
-    try:
-        log_task(f"Executing GNMAP Fallback: {gnmap_file.name}")
-        unique_ips = set()
-        with open(gnmap_file, 'r') as f:
-            for line in f:
-                if "Status: Up" in line or "Ports:" in line:
-                    ip_match = re.search(r'Host: ([\d\.]+) ', line)
-                    if ip_match:
-                        ip = ip_match.group(1)
-                        if ip not in unique_ips:
-                            _append_target(ctx.dirs['targets'] / "hosts_all.txt", ip)
-                            unique_ips.add(ip)
-                            host_count += 1
-        # GNMAP doesn't make service counting easy, so we return 0 for svcs
-        return True, host_count, 0
-    except Exception as e:
-        log_error(f"GNMAP Fallback also failed: {e}")
-        return False, 0, 0
-
-
-def _append_target(file_path, ip):
-    """
-    Safely adds an IP to a target file only if it doesn't already exist.
-    """
-    existing_ips = []
-    if file_path.exists():
-        with open(file_path, 'r') as f:
-            existing_ips = [line.strip() for line in f]
-
-    if ip not in existing_ips:
-        with open(file_path, "a") as f:
-            f.write(f"{ip}\n")
-
-
-def _append_dns_map(file_path, ip, hostname):
-    """Safely adds unique IP | Hostname pairs to the mapping file."""
-    # Skip generic reverse-DNS noise
-    if "in-addr.arpa" in hostname.lower():
-        return
-
-    entry = f"{ip:<20} | {hostname}"
-    existing = []
-    if file_path.exists():
-        with open(file_path, 'r') as f:
-            existing = [line.strip() for line in f]
-
-    if entry not in existing:
-        with open(file_path, "a") as f:
-            f.write(f"{entry}\n")
-
-
-def _deduplicate_all(target_root):
-    """Ensures unique IPs in all generated host files."""
-    for path in target_root.rglob("hosts_*.txt"):
-        if path.is_file():
-            with open(path, 'r') as f:
-                unique = sorted(set(line.strip() for line in f if line.strip()))
-            with open(path, 'w') as f:
-                f.write("\n".join(unique) + "\n")
-
-
-def get_host_telemetry(ctx, ip, host_node=None, gnmap_path=None):
-    """
-    Tiered Telemetry:
-    1. Try XML (Detailed)
-       > 2. Try GNMAP (Robust Fallback for TTL/Status)
-          > 3. Final Fallback (TTL Guessing)
-    """
-    data = {"os": "Unknown", "kernel": "Unknown", "ttl": 0}
-
-    # --- TRACK 1: XML Parsing (Preferred) ---
-    if host_node is not None:
+    errors = []
+    for path in (Path(xml_path), Path(gnmap_path)):
         try:
-            status_node = host_node.find('status')
-            if status_node is not None:
-                data['ttl'] = int(status_node.get('reason_ttl', 0))
+            hosts, services = import_scan(path, ctx)
+            return True, hosts, services
+        except (OSError, ET.ParseError, ValueError) as exc:
+            errors.append(f"{path.name}: {exc}")
+    from core.ui import log_error
 
-            os_match = host_node.find(".//osmatch")
-            data['os'] = os_match.get('name') if os_match is not None else "Unknown"
-
-            # Kernel discovery from service ostype
-            for svc in host_node.findall(".//service"):
-                ostype = svc.get('ostype', '')
-                if ostype and "kernel" in ostype.lower():
-                    data['kernel'] = ostype
-                    break
-        except Exception:
-            pass # Move to Track 2
-
-    # --- TRACK 2: GNMAP Regex Fallback (If XML failed or data is missing) ---
-    if (data['os'] == "Unknown" or data['ttl'] == 0) and gnmap_path and gnmap_path.exists():
-        try:
-            with open(gnmap_path, 'r') as f:
-                for line in f:
-                    if f"Host: {ip}" in line:
-                        ttl_match = re.search(r'reason_ttl: (\d+)', line)
-                        if ttl_match:
-                            data['ttl'] = int(ttl_match.group(1))
-                        break
-        except Exception as e:
-            log_warn(f"GNMAP Telemetry extraction failed for {ip}: {e}")
-
-    # --- TRACK 3: Logic-Based OS Guessing (Fallback) ---
-    if "Unknown" in data['os'] and data['ttl'] > 0:
-        ttl = data['ttl']
-        if ttl <= 64:
-            data['os'] = "Linux/IoT (TTL Guess)"
-        elif 65 <= ttl <= 128:
-            data['os'] = "Windows (TTL Guess)"
-        else:
-            data['os'] = "Network Device/Solaris (TTL Guess)"
-
-    return data
+    log_error("; ".join(errors))
+    return False, 0, 0
 
 
 def pre_flight_check(ctx):
-    """
-    Scans artifacts for a Phase 1 XML to rebuild the service map.
-    Returns: (host_count, service_count)
-    """
-    print(f"\n{YELLOW}--- [ DATA PARSING PHASE ] ---{RESET}")
-    log_task("Performing Pre-Flight artifact analysis...")
-
-    # Find any XML file starting with 'phase1'
-    xml_files = list(ctx.dirs['artifacts'].glob("phase1_*.xml"))
-
-    if not xml_files:
-        log_warn("No Phase 1 artifacts found for re-hydration.")
-        print(f"{YELLOW}------------------------------{RESET}\n")
-        return 0, 0
-
-    # We use our existing _parse_xml logic to rebuild the targets/ folders
-    # This ensures the 'targets/service_port/' directories exist for Phase 2
-    success, hosts, svcs = _parse_xml(xml_files[0], ctx)
-
-    if success:
-        log_success(f"Pre-Flight Complete: Restored {hosts} hosts and {svcs} services to session.")
-        print(f"{YELLOW}------------------------------{RESET}\n")
-        return hosts, svcs
-    return 0, 0
+    """Rehydrate every original scan artifact, including legacy names and fallback files."""
+    paths = sorted(
+        p
+        for p in ctx.dirs["artifacts"].glob("*.xml")
+        if not p.name.startswith(("gowitness_targets_", "zombie_check_"))
+    )
+    paths += [
+        p
+        for p in sorted(ctx.dirs["artifacts"].glob("*.gnmap"))
+        if not p.with_suffix(".xml").exists()
+    ]
+    for path in paths:
+        parse_results(path.with_suffix(".xml"), path.with_suffix(".gnmap"), ctx)
+    export_targets(ctx)
+    with connect(init_db(ctx)) as conn:
+        return (
+            conn.execute("SELECT COUNT(*) FROM hosts WHERE state='up'").fetchone()[0],
+            conn.execute(
+                "SELECT COUNT(*) FROM scan_results s JOIN hosts h ON s.ip=h.ip WHERE s.state='open' AND h.state='up'"
+            ).fetchone()[0],
+        )
 
 
-# --- IMPACT CHECK ---
-# This ensures that even if the operator hits Ctrl+C mid-scan, 
-# Phase 2 will still have a 'hosts_all.txt' to work with.
+def get_host_telemetry(ctx, ip, host_node=None, gnmap_path=None):
+    with connect(init_db(ctx)) as conn:
+        row = conn.execute("SELECT os,ttl,hops FROM hosts WHERE ip=?", (ip,)).fetchone()
+    return dict(row) if row else dict(os="Unknown", ttl=None, hops=None)
+
+
+"""
+INPUT: Nmap XML or GNMAP and a session context.
+OUTPUT: Normalized current results, immutable import observations and target-list exports.
+"""
