@@ -1,0 +1,5 @@
+<!-- Project: ScAnRoIdS Red Team Orchestrator
+Module: web/templates/gallery.html
+Purpose: Authenticated screenshot gallery shared by LAN viewers. -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ customer }} | Screenshots</title><link rel="stylesheet" href="{{ url_for('static',filename='css/style.css') }}"></head><body><main><a href="/">← Workspace</a><h1>Web screenshots</h1><p class="muted">{{ customer }} · Captured web surfaces</p><div class="gallery">{% for file in screenshots %}<article class="panel"><a href="{{ url_for('images',relative=file.path) }}"><img loading="lazy" src="{{ url_for('images',relative=file.path) }}" alt="{{ file.path }}"></a><p><a href="{{ url_for('files',relative=file.path) }}">{{ file.path }}</a></p></article>{% else %}<p>No screenshots have been captured.</p>{% endfor %}</div></main></body></html>
+<!-- INPUT: Authorized screenshot artifacts. OUTPUT: Lazy-loaded screenshot gallery. -->

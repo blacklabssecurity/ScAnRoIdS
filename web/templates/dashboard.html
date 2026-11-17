@@ -1,127 +1,22 @@
-/* 
+<!--
 Project: ScAnRoIdS Red Team Orchestrator
 Module: web/templates/dashboard.html
-Purpose: Main dashboard view to summarize scan results, provide 
-         access to external tool findings and provide visual 
-         feedback to the operator for quick summarization/actionable steps.
-*/
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>ScanRoids | Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.dataTables.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body class="bg-dark text-light">
-
-    <!-- Top Navigation / Stats Bar -->
-    <nav class="navbar navbar-dark bg-black border-bottom border-secondary sticky-top mb-4">
-        <div class="container-fluid">
-            <span class="navbar-brand fw-bold">
-                <div class="heartbeat {{ 'pulse-green' if heartbeat else 'static-red' }}"></div>
-                SCANROIDS ORCHESTRATOR <small class="text-muted ms-2">| <strong>Customer:</strong> {{ meta.customer }}</small>
-            </span>
-            <div class="d-flex align-items-center gap-4 small text-uppercase">
-                <div>Total Targets: <span class="text-info fw-bold">{{ results|map(attribute='ip')|unique|list|length }}</span></div>
-                <div>Services: <span class="text-info fw-bold">{{ results|length }}</span></div>
-                <a href="http://127.0.0.1:8889" target="_blank" class="btn btn-sm btn-outline-green py-0">Gowitness Gallery</a>
-                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger py-0">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container-fluid px-4">
-        <!-- Row 1: Scan Info & Live Logs -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card h-100 p-3 shadow">
-                    <h6 class="text-muted text-uppercase small border-bottom pb-2 mb-3">Scan Overview</h6>
-                    <div class="mb-1 small">Phase: <span class="text-warning">{{ meta.scan_phase }}</span></div>
-                    <div class="mb-1 small">Status: <span class="text-success">{{ meta.status }}</span></div>
-                    <div class="mb-3 small">Operator: <span class="text-info">{{ meta.operator }}</span></div>
-                    <code class="d-block bg-black p-2 rounded border border-secondary x-small mb-2" id="nmap-cmd">{{ meta.nmap_syntax }}</code>
-                    <button class="btn btn-sm btn-secondary w-100" onclick="copyToClipboard('nmap-cmd')">Copy Nmap Syntax</button>
-                </div>
-            </div>
-            <div class="col-md-8">
-                <div class="card h-100 p-3 shadow bg-black border-secondary">
-                    <h6 class="text-muted text-uppercase small border-bottom pb-2 mb-2">Live Terminal Stream</h6>
-                    <pre id="log-window" class="text-success x-small overflow-auto m-0" style="max-height: 150px; font-family: monospace;">[Waiting for scan data...]</pre>
-                </div>
-            </div>
-        </div>
-
-        <!-- Row 2: Main Results Table -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card p-3 shadow border-secondary">
-                    <table id="resultsTable" class="table table-dark table-hover align-middle small w-100">
-                        <thead>
-                            <tr class="text-muted x-small text-uppercase">
-                                <th><span class="header-pipe">|</span> IP ADDRESS <span class="header-pipe">|</span></th>
-                                <th> OS <span class="header-pipe">|</span></th>
-                                <th> PORT <span class="header-pipe">|</span></th>
-                                <th> SERVICE <span class="header-pipe">|</span></th>
-                                <th> REASON <span class="header-pipe">|</span></th>
-                                <th> TTL / HOPS <span class="header-pipe">|</span></th>
-                                <th> LIKELY SERVICES <span class="header-pipe">|</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in results %}
-                            <tr class="{{ 'row-interesting' if row.is_interesting }} {{ 'row-dc' if row.is_dc }}">
-                                <td class="fw-bold">{{ row.ip }}</td>
-                                <td>{{ row.os_guess }}</td>
-                                <td>
-                                    {{ row.port }}/{{ row.protocol }}
-                                    {% if row.has_tactical %}
-                                    <span class="tactical-bolt" title="Copy Tactical Suggestion" onclick="copyTactical('{{ row.ip }}', '{{ row.port }}')">⚡</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ row.service }}</td>
-                                <td><span class="badge bg-secondary x-small">{{ row.reason }}</span></td>
-                                <td>{{ row.ttl }} <small class="text-muted">({{ row.hops }} Hops)</small></td>
-                                <td>
-                                    <a href="#" class="text-info x-small text-decoration-none">View Shared</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <p class="text-center text-muted x-small mt-5">*** Press <strong>Ctrl+C</strong> in terminal to exit and stop dashboard ***</p>
-
-    <!-- JS Scripts -->
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>
-    <script>
-        $(document).ready(function() {
-            $('#resultsTable').DataTable({
-                "pageLength": 25,
-                "stateSave": true, // PERSISTENT SORTING ON REFRESH
-                "order": [[ 0, "asc" ]],
-                "stripeClasses": []
-            });
-        });
-
-        function copyToClipboard(id) {
-            var text = document.getElementById(id).innerText;
-            navigator.clipboard.writeText(text);
-            alert("Copied to clipboard!");
-        }
-
-        function copyTactical(ip, port) {
-            // TACTICAL SUGGESTION logic
-            let cmd = `nmap -Pn -sV --script vuln,smb-vuln* -p ${port} ${ip}`;
-            navigator.clipboard.writeText(cmd);
-            alert(`Tactical command copied for ${ip}:${port}`);
-        }
-    </script>
-</body>
-</html>
+Purpose: Viewing workspace for live results, evidence, topology and session history.
+-->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ customer }} | ScAnRoIdS</title><link rel="stylesheet" href="{{ url_for('static',filename='css/style.css') }}"><script defer src="{{ url_for('static',filename='js/dashboard.js') }}"></script></head>
+<body data-session="{{ session_name }}"><header><a class="brand" href="/">ScAnRoIdS<span class="accent">.</span></a><span class="divider"></span><strong>{{ customer }}</strong><span class="tag">TRAINING SESSION</span><span id="connection" class="connection">Connecting…</span><form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form></header>
+<main><div class="page-title"><div><p class="eyebrow">DISCOVER / UNDERSTAND / DEFEND</p><h1>Network overview</h1><p class="muted">Live evidence from your instructor’s terminal.</p></div><span id="activity" class="activity">● Ready</span></div>
+<section class="stats" aria-label="Session statistics"><article><span>LIVE TARGETS</span><strong id="host-count">0</strong><small>Hosts marked up by Nmap</small></article><article><span>OPEN SERVICES</span><strong id="service-count">0</strong><small>Distinct host / port / protocol</small></article><article><span>MOST SERVICES</span><strong class="ip-stat" id="juicy">—</strong><small>Target with the broadest surface</small></article><article><span>SESSION PHASE</span><strong class="ip-stat" id="phase">—</strong><small id="status">Awaiting tasking</small></article></section>
+<div class="workspace-grid"><section class="panel"><div class="panel-title"><h2>Session details</h2><span class="tag">TERMINAL CONTROLLED</span></div><dl><dt>Operator</dt><dd id="operator">—</dd><dt>Started</dt><dd id="started">—</dd><dt>Session</dt><dd>{{ session_name }}</dd></dl><div class="command-label"><span>Latest command</span><button id="copy-command">Copy</button></div><pre id="command">Awaiting tasking</pre><p id="copy-feedback" class="small muted" role="status"></p></section>
+<section class="panel log-panel"><div class="panel-title"><h2>Live terminal</h2><button id="pause-log">Pause scroll</button></div><pre id="logs" tabindex="0" aria-label="Live terminal output">Waiting for events…
+</pre></section></div>
+<nav class="tabs" aria-label="Workspace sections"><button data-tab="results" class="selected">Services</button><button data-tab="hosts">Hosts</button><button data-tab="topology">Topology</button><button data-tab="artifacts">Artifacts</button><button data-tab="history">History</button><button data-tab="analysis">Packet analysis</button></nav>
+<section id="results" class="panel tab-content"><div class="panel-title"><h2>Discovered services <span id="result-total" class="muted"></span></h2><div class="filters"><label class="sr-only" for="search">Search services</label><input id="search" type="search" placeholder="Filter IP, OS, port, service…"><select id="protocol" aria-label="Protocol"><option value="">All protocols</option><option>tcp</option><option>udp</option><option>sctp</option></select><label><input id="interesting" type="checkbox"> Interesting only</label></div></div><div class="table-wrap"><table><thead><tr><th><button data-sort="ip">IP address ↕</button></th><th><button data-sort="os_guess">OS ↕</button></th><th><button data-sort="port">Port ↕</button></th><th><button data-sort="service">Service ↕</button></th><th>Reason</th><th>TTL / distance</th><th>Like services</th><th>Evidence</th></tr></thead><tbody id="service-rows"></tbody></table></div><div class="table-footer"><span class="small muted">Green: interesting service · Amber: possible domain controller · OS guesses are labeled</span><div><button id="prev">← Previous</button><span id="pagination"></span><button id="next">Next →</button></div></div></section>
+<section id="hosts" class="panel tab-content" hidden><h2>Host inventory</h2><p class="muted">Includes discovery-only hosts with no confirmed open ports.</p><div class="table-wrap"><table><thead><tr><th>Address</th><th>Status</th><th>OS evidence</th><th>Hostnames</th><th>Measured distance</th></tr></thead><tbody id="host-rows"></tbody></table></div></section>
+<section id="topology" class="panel tab-content" hidden><div class="panel-title"><h2>Observed topology</h2><button id="refresh-topology">Refresh topology</button></div><p class="muted">Edges connect consecutive hops reported by Nmap traceroute. Unconnected targets have no measured route; TTL guesses do not create links.</p><div id="topology-view"></div></section>
+<section id="artifacts" class="panel tab-content" hidden><h2>Session artifacts</h2><p class="muted">Download original scans, screenshots, target lists, tool logs, and packet captures. The Gowitness database stays available locally for its report server.</p><div id="artifact-list"></div></section>
+<section id="history" class="panel tab-content" hidden><h2>Execution history</h2><div class="table-wrap"><table><thead><tr><th>Started</th><th>Tool / phase</th><th>Status</th><th>Exit</th><th>Evidence</th></tr></thead><tbody id="job-rows"></tbody></table></div><h2>Imported evidence</h2><div id="import-list"></div></section>
+<section id="analysis" class="panel tab-content" hidden><h2>Packet analysis recipes</h2><p class="muted">Copy these commands to the instructor terminal. Replace &lt;capture&gt; with a downloaded or local PCAP path.</p><div id="analysis-recipes"></div></section>
+<footer>ScAnRoIdS · Results update every 3 seconds · Ctrl+C in the instructor terminal stops the session and dashboard.</footer></main><dialog id="evidence-dialog"><h2 id="evidence-title">Service evidence</h2><pre id="evidence-text"></pre><button id="close-evidence">Close</button></dialog></body></html>
+<!-- INPUT: Customer/session identifiers and authenticated viewer CSRF token. OUTPUT: Viewing-only dashboard shell. -->

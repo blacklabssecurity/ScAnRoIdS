@@ -1,0 +1,5 @@
+# Synthetic fallback input
+Host: 192.0.2.20 (fallback.training.test) Status: Up
+Host: 192.0.2.20 (fallback.training.test) Ports: 22/open/tcp//ssh//OpenSSH 9.6/, 80/closed/tcp//http///, 161/open/udp//snmp///
+Host: 2001:db8::20 () Status: Up
+Host: 2001:db8::20 () Ports: 443/open/tcp//ssl|http//nginx/
