@@ -23,6 +23,8 @@ sudo .venv/bin/python main.py --customer CourseLab --interface any
 
 The supplied scan menu is preserved. Select an ID and provide an IP, CIDR, IPv4 last-octet range, or `-iL /path/to/hosts.txt`. Discovery, auditing and optional tool offers stay in the terminal. The viewer listens on port 8888. Use the Kali machine's LAN address from other workstations.
 
+During a session, use **`b` = back** at an option prompt to cancel the remaining workflow and return to the main scan-ID prompt. Use **`q` = exit** to end the session and close the dashboard, including from a nested prompt. Completed scans and saved artifacts are retained. At the main menu, `b` simply redraws the menu. These commands are recognized while awaiting input; Ctrl+C remains the way to interrupt an actively running job/session.
+
 Default viewer credentials are `operator` / `CourseLab_<current-year>`. Set `SCANROIDS_PASSWORD` to override the password. After a scan, the viewer stays available and the terminal accepts more jobs. Ctrl+C or `q` stops the session and server.
 
 Code may live wherever you choose, including `/tools/scripts/ScAnRoIdS`. Session data defaults to `/tools/scans/ScAnRoIdS`; override it with `--data-dir` or `SCANROIDS_DATA_DIR`.

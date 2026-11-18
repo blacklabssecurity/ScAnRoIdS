@@ -10,6 +10,7 @@ Quick start: .venv/bin/python main.py --doctor
 
 import argparse
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 import fcntl
 import hashlib
@@ -46,12 +47,29 @@ from modules.analysis import capture_guide
 
 
 _BATCH = False
+_SESSION_NAVIGATION = ContextVar("session_navigation", default=False)
 
 
-def ask(prompt):
+class BackToMenu(Exception):
+    """Cancel the remaining prompted workflow and return to the session menu."""
+
+
+class ExitSession(Exception):
+    """Request normal session shutdown from any nested instructor prompt."""
+
+
+def ask(prompt, *, navigation=True):
     if _BATCH:
         raise ValueError("This operation needs an interactive terminal: " + prompt)
-    return log_question(prompt)
+    enabled = navigation and _SESSION_NAVIGATION.get()
+    answer = log_question(prompt + (" [b=back, q=exit]" if enabled else ""))
+    if enabled:
+        command = answer.strip().lower()
+        if command in ("b", "back"):
+            raise BackToMenu
+        if command in ("q", "quit", "exit"):
+            raise ExitSession
+    return answer
 
 
 def yes(prompt):
@@ -463,6 +481,7 @@ def run(args):
         recover_jobs(ctx.db_path)
         attach_log(ctx.db_path)
         server = None
+        navigation_token = None
         try:
             log_note(f"Session directory: {ctx.base_path}")
             if args.resume:
@@ -497,27 +516,40 @@ def run(args):
                 log_success(f"Viewer: http://{address}:{args.port} | Username: operator")
                 # Keep the credential out of the shared dashboard/event log.
                 print(f"[i] Viewer password: {password}", flush=True)
+            navigation_token = _SESSION_NAVIGATION.set(True)
             if args.scan:
-                succeeded = execute_selection(ctx, args.scan, args)
-                if args.exit_after or args.dry_run:
-                    return 0 if succeeded else 1
-                print("[i] Requested scan finished. Dashboard remains available; Ctrl+C to exit.")
+                try:
+                    succeeded = execute_selection(ctx, args.scan, args)
+                except BackToMenu:
+                    log_note("Returned to main menu. Completed work and artifacts are preserved.")
+                    succeeded = None
+                else:
+                    if args.exit_after or args.dry_run:
+                        return 0 if succeeded else 1
+                    print(
+                        "[i] Requested scan finished. Dashboard remains available; Ctrl+C to exit."
+                    )
             if args.exit_after:
                 return 0
             while True:
                 if not args.view_only:
                     print(get_banner())
-                print(
-                    "Session commands: i=import, p=audit plan, t=external tools, c=compare, a=PCAP analysis, q=exit"
-                )
+                commands = "i=import, p=audit plan, c=compare, a=PCAP analysis"
+                if not args.view_only:
+                    commands += ", t=external tools"
+                print("Session commands: " + commands + ", b=back, q=exit")
                 choice = ask(
                     "View session / select scan ID:"
                     if not args.view_only
-                    else "View-only session command:"
+                    else "View-only session command:",
+                    navigation=False,
                 ).lower()
                 try:
-                    if choice == "q":
+                    if choice in ("q", "quit", "exit"):
                         break
+                    if choice in ("b", "back"):
+                        log_note("Already at the main session menu.")
+                        continue
                     if choice == "i":
                         import_file(ctx, Path(ask("Nmap XML/GNMAP path:")))
                     elif choice == "p":
@@ -536,16 +568,26 @@ def run(args):
                         execute_selection(ctx, choice, args)
                     else:
                         log_warn("Unknown command for this session mode")
+                except BackToMenu:
+                    log_note("Returned to main menu. Completed work and artifacts are preserved.")
                 except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
                     log_error(str(exc))
+        except ExitSession:
+            log_note("Instructor exited the session; closing the dashboard.")
         except KeyboardInterrupt:
             log_note("Instructor stopped the session; finalizing captures and dashboard.")
         finally:
-            set_status(ctx.db_path, "Controller stopped")
-            capture_guide(ctx)
-            if server:
-                server.close()
-            attach_log(None)
+            try:
+                set_status(ctx.db_path, "Controller stopped")
+                capture_guide(ctx)
+            finally:
+                try:
+                    if server:
+                        server.close()
+                finally:
+                    attach_log(None)
+                    if navigation_token is not None:
+                        _SESSION_NAVIGATION.reset(navigation_token)
     return 0
 
 
