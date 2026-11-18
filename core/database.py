@@ -60,6 +60,17 @@ def init_db(ctx):
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, message TEXT);
         """)
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS zombie_checks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, probe_port INTEGER,
+            classification TEXT, port_state TEXT, status TEXT, reason TEXT,
+            method TEXT, source TEXT, checked TEXT, details TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS zombie_observation_identity
+            ON zombie_checks(source,ip,IFNULL(probe_port,-1),method);
+        CREATE TABLE IF NOT EXISTS specialized_reports (
+            id TEXT PRIMARY KEY, kind TEXT, target TEXT, status TEXT, created TEXT,
+            json_path TEXT, data TEXT);
+        """)
         import_columns = {r[1] for r in conn.execute("PRAGMA table_info(imports)")}
         if "parser_version" not in import_columns:
             conn.execute("ALTER TABLE imports ADD COLUMN parser_version INTEGER NOT NULL DEFAULT 1")

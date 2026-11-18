@@ -160,8 +160,22 @@ def snapshot(ctx):
             if len(artifacts) >= 5000:
                 break
     from modules.analysis import analysis_status
+    from core.zombies import candidate_rows, validation_history
+
+    with connect(ctx.db_path) as conn:
+        reports = []
+        for row in conn.execute(
+            "SELECT data FROM specialized_reports WHERE kind='firewalk' ORDER BY created DESC,id DESC LIMIT 20"
+        ):
+            try:
+                reports.append(json.loads(row["data"]))
+            except ValueError:
+                continue
 
     return dict(
+        zombie_candidates=candidate_rows(ctx),
+        zombie_history=validation_history(ctx),
+        firewalk_reports=reports,
         analysis=analysis_status(),
         confirmed_open=sum(row["state"] == "open" for row in results),
         uncertain=sum(row["state"] != "open" for row in results),

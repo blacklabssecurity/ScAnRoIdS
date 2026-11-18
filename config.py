@@ -238,13 +238,15 @@ SCAN_LIBRARY = {
     "52": profile("Kitchen Sink", "-Pn -n -vv -sS -p-", phase=2),
     "60": profile(
         "Auto-Zombie Hunter",
-        "-n -vv -O --script ipidseq -p 20-23,80,443,445,515,631,9100-9102",
+        "-n -vv -sS -p 80 --script ipidseq --script-args ipidseq.probeport=80",
         scripts=["ipidseq"],
+        capture="discovery",
     ),
     "61": profile(
         "Firewalk",
         "-Pn -n -vv -sS --traceroute --script firewalk",
         scripts=["firewalk"],
+        capture="firewalk",
     ),
     "70": profile("Ghost Scan", "-n -vv -sS -D RAND:10 --spoof-mac 0 -g 53"),
     "71": profile("Idle Scan", "-Pn -n -vv", capture="zombie"),

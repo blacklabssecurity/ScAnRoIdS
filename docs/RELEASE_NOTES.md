@@ -41,9 +41,9 @@ Offline recipes are generated from analysis-tool readiness. A detected Falco/und
 
 ## Zombie menu labels and IPID compatibility
 
-Scan 60 is labeled [N] because candidate discovery actively probes hosts and includes OS detection. Scan 05 now points operators to Scan 60 when they need a candidate. IPID parsing accepts actual NSE output `Incremental!`, native `Incremental`, and the optional debug probe-port suffix. It does not accept `Broken incremental!` or unrelated substring matches. This shared parser fix applies both to hunter exports and the pre-idle-scan validation.
+Scan 60 is labeled [N] because candidate discovery actively probes hosts; OS detection is optional. Scan 05 now points operators to Scan 60 when they need a candidate. IPID parsing accepts actual NSE output `Incremental!`, native `Incremental`, and the optional debug probe-port suffix. It does not accept `Broken incremental!` or unrelated substring matches. This shared parser fix applies both to hunter exports and the pre-idle-scan validation.
 
-Scan 60 still operates on the instructor-supplied scope; automatic OS-unknown selection, a terminal candidate picker and structured validation-failure reasons remain suggested workflow improvements, not completed behavior. Scan 05 still revalidates each selected candidate and retains its current open-probe-port requirement.
+Scan 60 supports explicit OS-unknown/all/manual scope. Scan 05/71 provide a saved-candidate picker, structured validation reasons and fresh checks; a closed probe port is accepted when incremental replies establish suitability. See the workflow notes below.
 
 ## Capture routing mismatch correction
 
@@ -54,3 +54,10 @@ The capture runner now waits for file readiness, drains dumpcap with SIGINT, rec
 ## Explicit terminal navigation
 
 Session commands now distinguish `b=back` from `q=exit`. Nested instructor prompts advertise both; `b` cancels the remaining prompted workflow and returns to the main scan-ID prompt, while `q` requests normal session shutdown and closes the viewer. Completed scans, imported evidence and artifacts are preserved. At the main menu `b` is a no-op/redraw. View-only sessions no longer advertise unavailable external-tool execution. Navigation is available at prompts; active process interruption still uses Ctrl+C. Non-interactive execution is unchanged.
+
+## Zombie and Firewalk classroom workflows
+
+- Scan 60 has explicit unknown/all/manual scope, a probe-port choice and optional OS detection. Scan 05/71 provide candidate selection and fresh checks, detailed failures and persistent evidence/history; closed probe ports are accepted when replies establish incremental IPID.
+- Scan 61 has TCP/UDP/both configuration, bounded tuning, measured-route and eligible-port prerequisites, gateway report focus and dedicated reports. Router ICMP error captures match the quoted target; ordinary IPv4/IPv6 packets are covered.
+- New viewing-only dashboard tabs expose candidates/history and Firewalk status, route, settings, inferences and raw evidence. Existing sessions receive additive tables and import enrichment.
+- Gateway selection does not constrain Nmap probes to one router. Live idle/Firewalk outcomes still require Kali routed-lab acceptance. Local-IP detection and exclusions are unchanged.

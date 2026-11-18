@@ -4,7 +4,7 @@ Validated in a Debian 13 execution environment using Python 3.12. Python 3.11 co
 
 ## Automated checks
 
-**102 tests passed**, including the optional checks below:
+**145 tests passed**, including the optional checks below:
 
 - Nmap XML and GNMAP import, IPv6 address selection, discovery-only hosts, missing TTL, explicit closed/open|filtered states, malformed XML fallback and unchanged state on failed import.
 - Repeated imports, history retention, legacy database backup/deduplication, session resumption, complete domain-controller port matching and sanitized service paths.
@@ -84,3 +84,14 @@ The root cause on the reported Kali VM was confirmed by its route output: target
 ## Terminal navigation regression checks
 
 Eleven additional tests exercise return from target, source-port, custom-flag, zombie-IP/port and import-path prompts; normal exit and viewer closure from a nested prompt; artifact preservation when returning after completed work; no-op back at the main menu; returning from a CLI-preselected scan; and viewer/navigation cleanup even if guide regeneration fails. No scan processes are launched by these navigation tests.
+
+
+## Zombie and Firewalk workflow validation
+
+The full 145-test run includes 43 added workflow/capture regressions: explicit hunt scopes, optional OS detection, idempotent candidate observations, picker/manual entry, fresh repeated checks on closed probe ports, unstable/missing IPID rejection, self/scope separation, Firewalk protocol/tuning, measured-route prerequisites, gateway focus, report persistence, cancellation and changed/missing route or script evidence. Dry-run checks verify complete commands without executing the workflow. Scan 60 captures preserve host-discovery and optional OS probes.
+
+Twelve offline libpcap executions cover IPv4 and IPv6 time-exceeded/unreachable replies quoting the intended target, plus rejection of unrelated quoted targets, on Ethernet/SLL/SLL2. These use standard IP headers; live IPv6 extension-header/tunnel behavior remains a lab acceptance case. The original localhost Nmap integration and other optional libpcap checks also passed.
+
+Headless Chromium against a synthetic Waitress session verified candidate methods/status/history and evidence downloads; separate Firewalk reports with TCP/UDP rows, measured paths, raw output and JSON downloads; expanded report sections retained through automatic polling; selected-tab persistence; mobile width; and no JavaScript page errors. Synthetic reports were used to exercise presentation, not to claim live filtering results.
+
+CLI smoke checks printed complete TCP+UDP Firewalk plans, a manually scoped candidate hunt with port 443, and an idle scan with an explicitly selected candidate. No target traffic was sent by these dry runs. No live privileged zombie/idle/Firewalk scan or dumpcap capture could run in this environment, which lacks packet capture capabilities. These remain the Kali classroom acceptance tests; see [Zombie workflow](ZOMBIES.md) and [Firewalk workflow](FIREWALK.md).

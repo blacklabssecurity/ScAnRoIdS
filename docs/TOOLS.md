@@ -87,3 +87,7 @@ Check `ip -br addr` and `ip route get <target>`. For example, a target routed th
 For routed scans use `--interface any`, or select the actual routed interface. With no explicit interface, routed jobs now default to `any`. Explicit physical-interface mismatches detected from local routes stop the job before scanning. ARP/multicast/local discovery still requires the physical interface connected to that segment. Target filters and local-IP exclusions remain enabled.
 
 Capture startup waits for dumpcap readiness instead of assuming a fixed delay is sufficient. After a job, inspect its `_capture.json` and `_capture.log` in the dashboard artifacts. They record interface, filter, route evidence, packet count and shutdown status. `empty` or `unverified` is reported explicitly; a nonempty PCAPNG header is not treated as proof that any packets were collected.
+
+## Specialized scan prerequisites
+
+Zombie workflows use standard Nmap `ipidseq` and idle-scan support; no additional Python or OS packages are needed. Firewalk uses standard Nmap `firewalk`, raw sockets and a routed target with measurable intermediate hops. Both use dumpcap through the shared capture runner. `--doctor` checks executables; each execution separately checks required NSE availability. See [Zombie workflows](ZOMBIES.md) and [Firewalk](FIREWALK.md) for scope, tuning and evidence interpretation.

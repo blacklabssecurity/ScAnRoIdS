@@ -225,6 +225,55 @@ def xml_records(path):
             if s.get("id") == "ipidseq"
         ]
         record["zombies"] = [s for s in candidates if incremental_ipid(s)]
+        record["host_scripts"] = [
+            dict(id=s.get("id", ""), output=s.get("output", ""))
+            for s in host.findall("hostscript/script")
+        ]
+        record["ipid"] = []
+        scripts = [s for s in record["host_scripts"] if s["id"] == "ipidseq"]
+        for evidence in scripts:
+            output = evidence["output"]
+            port_match = re.search(
+                r"(?:ipidseq\.)?probeport=(\d+)", root.get("args", "")
+            ) or re.search(r"\[used port (\d+)\]", output)
+            if port_match:
+                probe = int(port_match[1])
+            else:
+                ports = [
+                    s
+                    for s in record["services"]
+                    if s["protocol"] == "tcp" and s["state"] in ("open", "closed")
+                ]
+                ports.sort(key=lambda s: (s["state"] != "open", s["port"]))
+                probe = ports[0]["port"] if ports else None
+            port_state = next(
+                (
+                    s["state"]
+                    for s in record["services"]
+                    if s["protocol"] == "tcp" and s["port"] == probe
+                ),
+                None,
+            )
+            record["ipid"].append(
+                dict(
+                    classification=output,
+                    incremental=incremental_ipid(output),
+                    probe_port=probe,
+                    port_state=port_state,
+                    method="ipidseq",
+                )
+            )
+        if not scripts and sequence is not None:
+            output = sequence.get("class", "")
+            record["ipid"].append(
+                dict(
+                    classification=output,
+                    incremental=incremental_ipid(output),
+                    probe_port=None,
+                    port_state=None,
+                    method="nmap-os",
+                )
+            )
         records.append(record)
     return records
 
@@ -307,7 +356,7 @@ def import_scan(path, ctx):
         ).fetchone()
         if not exists:
             conn.execute(
-                "INSERT INTO imports(digest,source,imported,records,parser_version) VALUES (?,?,?,?,2)",
+                "INSERT INTO imports(digest,source,imported,records,parser_version) VALUES (?,?,?,?,3)",
                 (digest, path.name, now(), json.dumps(records)),
             )
             for host in records:
@@ -334,7 +383,7 @@ def import_scan(path, ctx):
                         (host["ip"],),
                     )
             update_dc_tags(conn)
-        elif exists["parser_version"] < 2:
+        elif exists["parser_version"] < 3:
             # Enrich a legacy import without replaying old state over a newer
             # observation. Existing port identities always retain their state.
             for host in records:
@@ -346,10 +395,16 @@ def import_scan(path, ctx):
                     if current is None:
                         upsert_service(conn, service, digest)
             conn.execute(
-                "UPDATE imports SET records=?,parser_version=2 WHERE digest=?",
+                "UPDATE imports SET records=?,parser_version=3 WHERE digest=?",
                 (json.dumps(records), digest),
             )
             update_dc_tags(conn)
+        from core.zombies import record_observations
+
+        imported = conn.execute(
+            "SELECT imported FROM imports WHERE digest=?", (digest,)
+        ).fetchone()[0]
+        record_observations(conn, records, digest, imported)
     export_targets(ctx)
     return len({h["ip"] for h in records if h["state"] == "up"}), sum(
         s["state"] == "open" for h in records if h["state"] == "up" for s in h["services"]
@@ -457,6 +512,7 @@ def pre_flight_check(ctx):
         p
         for p in sorted(ctx.dirs["artifacts"].glob("*.gnmap"))
         if not p.with_suffix(".xml").exists()
+        and not p.name.startswith(("gowitness_targets_", "zombie_check_"))
     ]
     for path in paths:
         parse_results(path.with_suffix(".xml"), path.with_suffix(".gnmap"), ctx)

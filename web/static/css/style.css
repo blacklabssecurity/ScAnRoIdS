@@ -534,3 +534,18 @@ tr.uncertain {
 .confirmed-state {
   color: var(--green);
 }
+
+.firewalk-card {
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
+}
+.firewalk-card details {
+  margin: 12px 0;
+}
+.firewalk-card pre {
+  max-height: 360px;
+  overflow: auto;
+}
+#zombies details {
+  margin-top: 22px;
+}

@@ -40,6 +40,7 @@ from core.system import (
     dependencies,
     get_default_interface,
     get_interface_ip,
+    get_local_ips,
     target_tokens,
 )
 from core.ui import attach_log, log_error, log_note, log_question, log_success, log_warn
@@ -163,6 +164,35 @@ def arguments(argv=None):
     parser.add_argument(
         "--compare", type=Path, help="Write a service comparison with another session"
     )
+    parser.add_argument(
+        "--zombie-scope",
+        choices=["unknown", "all", "manual"],
+        help="Candidate-hunt scope for scan 60",
+    )
+    parser.add_argument("--zombie", help="Selected candidate IPv4[:probe-port] for scan 05/71")
+    parser.add_argument("--zombie-probe-port", type=int, default=80)
+    parser.add_argument(
+        "--zombie-os", action="store_true", help="Add optional OS detection to candidate hunting"
+    )
+    parser.add_argument(
+        "--zombie-checks",
+        type=int,
+        choices=[1, 2, 3],
+        default=2,
+        help="Fresh suitability checks immediately before idle scanning",
+    )
+    parser.add_argument("--idle-ports", help="Target port list for idle scanning")
+    parser.add_argument("--firewalk-protocol", choices=["tcp", "udp", "both"])
+    parser.add_argument("--firewalk-tcp-ports")
+    parser.add_argument("--firewalk-udp-ports")
+    parser.add_argument(
+        "--firewalk-gateway", help="Observed gateway IP to focus the report, or all"
+    )
+    parser.add_argument("--firewalk-max-ports", type=int)
+    parser.add_argument("--firewalk-retries", type=int)
+    parser.add_argument("--firewalk-parallel", type=int)
+    parser.add_argument("--firewalk-probe-ms", type=int)
+    parser.add_argument("--firewalk-recv-ms", type=int)
     args = parser.parse_args(argv)
     if args.profile:
         profile = json.loads(args.profile.read_text())
@@ -176,6 +206,21 @@ def arguments(argv=None):
             "timeout",
             "tools",
             "audit",
+            "zombie_scope",
+            "zombie",
+            "zombie_probe_port",
+            "zombie_os",
+            "zombie_checks",
+            "idle_ports",
+            "firewalk_protocol",
+            "firewalk_tcp_ports",
+            "firewalk_udp_ports",
+            "firewalk_gateway",
+            "firewalk_max_ports",
+            "firewalk_retries",
+            "firewalk_parallel",
+            "firewalk_probe_ms",
+            "firewalk_recv_ms",
         }
         if not isinstance(profile, dict) or set(profile) - allowed:
             parser.error("Course profile has unsupported fields")
@@ -244,6 +289,111 @@ def select_session(root):
     return sessions[choice - 1]
 
 
+def select_zombie(ctx, args):
+    from core.zombies import candidate_rows
+    from modules.zombie import endpoint
+
+    if args.zombie:
+        return endpoint(args.zombie)
+    rows = candidate_rows(ctx, only_candidates=True)
+    if rows:
+        print("Saved candidates — each selection is freshly revalidated before use:")
+        for index, row in enumerate(rows, 1):
+            print(
+                f"{index}. {row['ip']}:{row['probe_port'] or '?'} | {row['classification']} | {row['status']} | {row['checked']} | {row['method']}"
+            )
+        value = ask("Candidate number, IPv4[:port], or m for manual entry:")
+        if value.isdigit():
+            index = int(value) - 1
+            if not 0 <= index < len(rows):
+                raise ValueError("Candidate number out of range")
+            row = rows[index]
+            port = row["probe_port"] or int(
+                ask("Probe port for this candidate (default 80):") or "80"
+            )
+            return endpoint(f"{row['ip']}:{port}")
+        if value.lower() != "m":
+            return endpoint(value)
+    return endpoint(ask("Zombie IPv4[:port] (default probe port 80):"))
+
+
+def select_hunt_scope(ctx, args):
+    from core.zombies import hunt_scope
+
+    mode = args.zombie_scope
+    if mode is None:
+        if _BATCH:
+            mode = "manual" if args.targets else "unknown"
+        else:
+            print(
+                "Zombie hunt scope: 1=OS-unknown discovered hosts, 2=all discovered IPv4 hosts, 3=manual"
+            )
+            value = ask("Scope [1/2/3] (default 1):") or "1"
+            mode = {"1": "unknown", "2": "all", "3": "manual"}.get(value, value)
+    manual = args.targets
+    if mode == "manual" and not manual:
+        manual = ask("Candidate IPv4 scope (IP, CIDR, range or -iL file):")
+    targets = hunt_scope(ctx, mode, manual)
+    log_note(
+        f"Zombie hunt scope: {mode}; {len(targets)} target expression(s). OS-unknown is a selection hint, not proof of suitability."
+    )
+    return targets
+
+
+def configure_firewalk(args):
+    from modules.firewalker import options, DEFAULT_TCP, DEFAULT_UDP
+
+    protocol = args.firewalk_protocol or (
+        "tcp"
+        if _BATCH
+        else (ask("Firewalk protocol [tcp/udp/both] (default tcp):") or "tcp").lower()
+    )
+    tcp = args.firewalk_tcp_ports or DEFAULT_TCP
+    udp = args.firewalk_udp_ports or DEFAULT_UDP
+    if not _BATCH:
+        if protocol in ("tcp", "both") and not args.firewalk_tcp_ports:
+            tcp = ask(f"TCP probe ports (default {tcp}):") or tcp
+        if protocol in ("udp", "both") and not args.firewalk_udp_ports:
+            udp = ask(f"UDP probe ports (default {udp}):") or udp
+    values = dict(
+        max_ports=args.firewalk_max_ports if args.firewalk_max_ports is not None else 7,
+        retries=args.firewalk_retries if args.firewalk_retries is not None else 1,
+        parallel=args.firewalk_parallel if args.firewalk_parallel is not None else 4,
+        probe_ms=args.firewalk_probe_ms if args.firewalk_probe_ms is not None else 1000,
+        recv_ms=args.firewalk_recv_ms if args.firewalk_recv_ms is not None else 1000,
+    )
+    if not _BATCH and yes("Adjust Firewalk retry, concurrency and timeout limits?"):
+        for key, label in [
+            ("max_ports", "Max eligible ports per protocol (-1 means all)"),
+            ("retries", "Retries per probe"),
+            ("parallel", "Parallel probes"),
+            ("probe_ms", "Probe timeout (ms)"),
+            ("recv_ms", "Receive loop timeout (ms)"),
+        ]:
+            values[key] = int(ask(f"{label} (default {values[key]}):") or str(values[key]))
+    return options(protocol, tcp, udp, gateway=args.firewalk_gateway, **values)
+
+
+def select_gateway(gateways):
+    print("Observed intermediate gateways:")
+    for index, hop in enumerate(gateways, 1):
+        print(f"{index}. hop {hop['ttl']} — {hop['ip']}")
+    log_note(
+        "Gateway selection focuses the report. Nmap Firewalk probes the routed path; it has no gateway-only option."
+    )
+    value = ask("Gateway number, observed IP, or a for all (default last gateway):")
+    if not value:
+        return gateways[-1]["ip"]
+    if value.lower() in ("a", "all"):
+        return "all"
+    if value.isdigit():
+        index = int(value) - 1
+        if not 0 <= index < len(gateways):
+            raise ValueError("Gateway number out of range")
+        return gateways[index]["ip"]
+    return str(ipaddress.ip_address(value))
+
+
 def prepare_profile(ctx, choice, args, targets):
     profile = SCAN_LIBRARY[choice].copy()
     flags = profile["flags"]
@@ -251,26 +401,32 @@ def prepare_profile(ctx, choice, args, targets):
         flags = args.flags or ask("Custom Nmap flags (targets/output are managed separately):")
         profile["phases"] = [args.phase]
     elif choice in ("05", "71"):
-        zombie = ask("Zombie IPv4[:port] (all hosts must belong to your lab):")
-        host, _, port = zombie.partition(":")
-        ipaddress.IPv4Address(host)
-        port = port or "80"
-        if not port.isdigit() or not 1 <= int(port) <= 65535:
-            raise ValueError("Invalid zombie port")
-        ports = ask("Target ports (e.g. 80,443 or 1-1024):")
-        if not ports or any(c not in "0123456789,-" for c in ports):
-            raise ValueError("Invalid target port list")
+        from modules.zombie import ensure_separate_zombie, validate_candidate
+
+        host, port = select_zombie(ctx, args)
+        ensure_separate_zombie(host, targets)
+        ports = args.idle_ports or ask("Target ports (e.g. 80,443 or 1-1024):")
+        from core.parser import numeric_ports
+
+        numeric_ports(ports)
         flags += f" -sI {host}:{port} -p {ports}"
         if not args.dry_run:
-            from modules.zombie import validate_zombie
+            result = validate_candidate(ctx, host, port, args.zombie_checks)
+            log_note(f"Zombie {host}:{port}: {result['status']} — {result['reason']}")
+            if result["status"] != "validated":
+                raise ValueError(result["reason"])
+        else:
+            log_note("Dry run: fresh candidate validation will occur before real idle scanning.")
+    elif choice == "60":
+        from modules.zombie import hunter_flags
 
-            if not validate_zombie(ctx, host, int(port)):
-                raise ValueError(
-                    "Zombie candidate did not show an open probe port and incremental IPID; choose another lab candidate"
-                )
-        log_note(
-            "Use scan 60 first to collect IPID suitability evidence; suitability is not guaranteed."
+        port = args.zombie_probe_port
+        if not _BATCH and port == 80:
+            port = int(ask("Candidate TCP probe port (default 80):") or "80")
+        detect_os = args.zombie_os or (
+            not _BATCH and yes("Also perform OS detection on candidate hosts?")
         )
+        flags = hunter_flags(port, detect_os)
     elif choice == "04":
         dns = ask("DNS server IP (blank uses system DNS):")
         if dns:
@@ -296,8 +452,6 @@ def prepare_profile(ctx, choice, args, targets):
         flags += " -e " + ctx.interface
         if choice == "20":
             targets = ["ff02::1"]
-    if choice == "61" and (len(targets) != 1 or "/" in targets[0]):
-        raise ValueError("Firewalk requires one target address and a route with intermediate hops")
     if choice == "46":
         if not yes("Proceed with ICS discovery against the training scope?"):
             return None, None
@@ -395,8 +549,41 @@ def external_tools(ctx):
 
 def execute_selection(ctx, choice, args):
     profile = SCAN_LIBRARY[choice]
+    if choice == "61":
+        from modules.firewalker import run_firewalk, scan_flags
+
+        targets = target_tokens(args.targets or ask("Single routed Firewalk target IP:"))
+        if len(targets) != 1:
+            raise ValueError("Firewalk requires one literal target IP")
+        target = str(ipaddress.ip_address(targets[0]))
+        settings = configure_firewalk(args)
+        if args.dry_run:
+            for label, final in (("Preflight", False), ("Firewalk after prerequisites", True)):
+                command = build_command(
+                    scan_flags(target, settings, final),
+                    [target],
+                    ctx.dirs["artifacts"] / ("firewalk_PLAN" if final else "trace_PLAN"),
+                    get_local_ips(),
+                )
+                print(label + ":", shlex.join(command))
+            if ctx.capture:
+                print("PCAP filter:", capture_filter(profile, [target], []))
+            print(
+                "Gateway report focus:",
+                settings["gateway"] or "selected after measured route preflight",
+            )
+            return True
+        report = run_firewalk(
+            ctx, target, settings, gateway_selector=None if _BATCH else select_gateway
+        )
+        log_note(f"Firewalk {report['status']}: {report.get('summary', '')}")
+        log_note("Report: " + report["artifact"])
+        capture_guide(ctx)
+        return report["status"] in ("completed", "no_blocking_inferred", "no_eligible_ports")
     phase = args.phase if choice == "99" else profile["phases"][0]
-    if phase == 1:
+    if choice == "60":
+        targets = select_hunt_scope(ctx, args)
+    elif phase == 1:
         text = args.targets or ask("Targets (IP, CIDR, last-octet range or -iL file):")
         targets = target_tokens(text)
     else:
@@ -425,6 +612,19 @@ def execute_selection(ctx, choice, args):
         )
     else:
         success = deploy_scan(ctx, targets, profile, 1, choice)
+        if choice == "60":
+            from core.zombies import candidate_rows
+
+            rows = candidate_rows(ctx, only_candidates=True)
+            log_note(
+                f"{len(rows)} saved candidate record(s). Select Scan 05 to pick and freshly validate one."
+            )
+            set_status(
+                ctx.db_path,
+                "Zombie hunt completed" if success else "Zombie hunt finished with failures",
+            )
+            capture_guide(ctx)
+            return success
         if success and (
             args.audit or yes("Continue into a host-by-host audit of confirmed open ports?")
         ):

@@ -11,6 +11,24 @@ import subprocess
 from core.system import target_tokens, expand_range
 
 
+def firewalk_filter(target):
+    """Include target traffic and router errors quoting this target's destination.
+
+    ICMP outer router addresses differ from the target. Match the quoted packet
+    rather than capturing every router's unrelated ICMP traffic on Linux any.
+    """
+    address = ipaddress.ip_address(target)
+    if address.version == 4:
+        feedback = f"(icmp and (icmp[0] = 11 or icmp[0] = 3) and (icmp[8] & 0xf0 = 0x40) and icmp[24:4] = 0x{int(address):08x})"
+    else:
+        words = [int.from_bytes(address.packed[i : i + 4], "big") for i in range(0, 16, 4)]
+        comparisons = " and ".join(
+            f"icmp6[{32 + 4 * i}:4] = 0x{word:08x}" for i, word in enumerate(words)
+        )
+        feedback = f"(icmp6 and (icmp6[0] = 3 or icmp6[0] = 1) and ({comparisons}))"
+    return f"(host {address}) or {feedback}"
+
+
 def route_diagnostics(targets):
     """Inspect bounded route samples without transmitting probes to a target."""
     records = []

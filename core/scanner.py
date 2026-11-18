@@ -11,7 +11,7 @@ import shlex
 import shutil
 import subprocess
 from core.database import event, set_status
-from core.capture import capture_plan
+from core.capture import capture_plan, firewalk_filter
 from core.parser import parse_results
 from core.planner import audit_plan, audit_flags
 from core.runner import identifier, packet_capture, run_command
@@ -151,6 +151,10 @@ def build_command(flags, targets, output, local_ips=(), proxy=False):
 
 def capture_filter(profile, targets, flags):
     mode = profile.get("capture", "scope")
+    if mode == "firewalk":
+        if len(targets) != 1:
+            raise ValueError("Firewalk capture requires one literal target address")
+        return firewalk_filter(targets[0])
     if mode == "arp":
         return "arp"
     if mode == "dns":
@@ -212,6 +216,7 @@ def capture_filter(profile, targets, flags):
 
 def deploy_scan(ctx, targets, scan_meta, phase_num, choice, flags=None):
     """Every execution gets its own ID; repeated menu choices cannot overwrite artifacts."""
+    ctx.last_scan = None
     args = validate_flags(flags if flags is not None else scan_meta["flags"])
     proxy = getattr(ctx, "proxy", False)
     # Pull script names from the final argv, including operator-provided scripts.
@@ -275,6 +280,13 @@ def deploy_scan(ctx, targets, scan_meta, phase_num, choice, flags=None):
                 if ok
                 else "Scan artifacts could not be parsed",
             )
+    ctx.last_scan = dict(
+        stem=stem,
+        xml=output.with_suffix(".xml"),
+        gnmap=output.with_suffix(".gnmap"),
+        result=result,
+        capture=getattr(ctx, "capture_result", None),
+    )
     captured = getattr(ctx, "capture_result", None)
     if captured and (
         captured["status"] in ("failed", "startup_failed")

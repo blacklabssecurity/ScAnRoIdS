@@ -81,3 +81,9 @@ An ordinary routed scan defaults to Linux's `any` capture interface while retain
 Detailed discovery profiles 40–46 retain all target-scoped traffic, including ARP and Nmap host-discovery probes outside the service-port list. Audit jobs retain their per-host/per-transport port filters and ICMP feedback. `any` does not mean unrestricted capture: BPF target scope remains active.
 
 Dumpcap must emit its `File:` readiness message and create the capture file before the scan starts. Shutdown sends SIGINT and waits for graceful completion, with process-group cleanup as a fallback. Each `<stem>_capture.json` records the selected interface, BPF, route samples, packet count, status and any forced stop. Empty/unverified captures raise visible events. If a completed Nmap job confirms open services but capture reports zero packets, scan artifacts are retained and the overall operation reports a capture failure rather than full success.
+
+## Specialized evidence
+
+`core/zombies.py` stores candidate observations and append-only fresh checks in `zombie_checks`, independently of assessment target exports. XML parser version 3 enriches older imports without overwriting newer assessment state. `modules/zombie.py` validates selected candidates before idle scans.
+
+`modules/firewalker.py` coordinates captured route/port preflight and conditional Firewalk execution, retaining JSON/text reports in `specialized_reports` plus raw Nmap evidence. Gateway selection is report focus; the Nmap engine probes the measured path. The viewer exposes both evidence types through read-only snapshot fields and existing contained artifact downloads.

@@ -72,6 +72,12 @@ Documentation ranges above are placeholders; substitute your training network. `
 
 `--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Routed scans capture on Linux `any` by default; `--interface any` selects it explicitly. If you select a physical capture interface, it must match the target route (`ip route get <target>`). Local ARP/multicast discovery requires a physical interface. Run `--help` for all options.
 
+## Zombie and Firewalk exercises
+
+Scan 60 now offers explicit hunt scope and optional OS detection. Scan 05 provides a saved-candidate picker and fresh IPID validation with durable history. See [Zombie workflow](docs/ZOMBIES.md).
+
+Scan 61 now provides TCP/UDP selection, bounded tuning, measured-route prerequisites, gateway report focus, router-ICMP capture and dedicated dashboard reports. See [Firewalk workflow](docs/FIREWALK.md) for interpretation and CLI examples.
+
 ## Teaching and extension
 
 The viewer provides service and host tables, service-specific copy commands, measured route visualization, execution history, a screenshot gallery, artifact downloads and PCAP analysis recipes. Terminal session commands also support offline PCAP analysis and comparisons between saved sessions.

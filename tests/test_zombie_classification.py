@@ -45,7 +45,9 @@ def test_idle_validation_accepts_actual_nse_label_without_expanding_targets(ctx,
         <hostscript><script id="ipidseq" output="Incremental!"/></hostscript></host></nmaprun>""")
         return dict(status="completed")
 
+    monkeypatch.setattr(zombie, "preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(zombie, "run_command", run)
+    monkeypatch.setattr(zombie, "preflight", lambda *a, **kw: None)
     assert validate_zombie(ctx, "192.0.2.10", 80)
     assert not (ctx.dirs["targets"] / "hosts_all.txt").exists()
 

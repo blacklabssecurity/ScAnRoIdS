@@ -70,6 +70,11 @@ class ScanContext:
                 + "\n"
             )
         self.interface = None
+        self.interface_explicit = False
+        self.proxy = False
+        self.proxy_endpoint = None
+        self.capture_result = None
+        self.last_scan = None
         self.capture = True
         self.greedy = False
         self.timeout = 3600

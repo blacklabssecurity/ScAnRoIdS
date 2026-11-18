@@ -65,6 +65,8 @@ function showTab(tab) {
       "artifacts",
       "history",
       "analysis",
+      "zombies",
+      "firewalk",
     ].includes(tab)
   )
     tab = "results";
@@ -259,6 +261,164 @@ function services() {
     );
   save();
 }
+function zombieTable(id, rows) {
+  const body = $(id);
+  body.replaceChildren();
+  rows.forEach((row) => {
+    const tr = el("tr"),
+      evidence = el("td");
+    if (row.artifact)
+      evidence.append(fileLink(row.artifact, "Raw evidence ↗"));
+    else evidence.textContent = "—";
+    tr.append(
+      el("td", row.ip + ":" + (row.probe_port ?? "?")),
+      el("td", row.status),
+      el("td", row.classification || "No classification"),
+      el("td", row.method),
+      el("td", new Date(row.checked).toLocaleString()),
+      el("td", row.reason),
+      evidence,
+    );
+    body.append(tr);
+  });
+  if (!rows.length)
+    emptyBody(
+      body,
+      7,
+      "No candidate observations yet. Use Scan 60 in the instructor terminal.",
+    );
+}
+function renderSpecialized(data) {
+  zombieTable("zombie-rows", data.zombie_candidates || []);
+  zombieTable("zombie-history", data.zombie_history || []);
+  const container = $("firewalk-reports");
+  const expanded = new Set(
+    [...container.querySelectorAll("details[open]")].map(
+      (node) => node.dataset.key,
+    ),
+  );
+  container.replaceChildren();
+  (data.firewalk_reports || []).forEach((report) => {
+    const card = el("article", undefined, "firewalk-card");
+    card.append(
+      el("h2", report.target + " · " + report.status),
+      el("p", report.summary || ""),
+      el(
+        "p",
+        "Gateway focus: " +
+          (report.selected_gateway || "Not selected") +
+          " · " +
+          (report.settings?.protocol || "unknown") +
+          " · " +
+          new Date(report.started).toLocaleString(),
+        "muted small",
+      ),
+    );
+    if (report.gateway_selection)
+      card.append(el("p", report.gateway_selection, "muted small"));
+    const route = el("details");
+    route.dataset.key = report.id + ":route";
+    route.open = expanded.has(route.dataset.key);
+    route.append(el("summary", "Measured path and probe settings"));
+    const settings = report.settings || {};
+    route.append(
+      el(
+        "p",
+        "TCP: " +
+          (settings.tcp_ports || []).join(", ") +
+          " · UDP: " +
+          (settings.udp_ports || []).join(", "),
+      ),
+    );
+    route.append(
+      el(
+        "p",
+        "Max eligible ports: " +
+          settings.max_ports +
+          " · Retries: " +
+          settings.retries +
+          " · Parallel: " +
+          settings.parallel +
+          " · Timeouts: " +
+          settings.probe_ms +
+          "/" +
+          settings.recv_ms +
+          " ms",
+      ),
+    );
+    (report.final_trace || report.trace || []).forEach((hop) =>
+      route.append(
+        el(
+          "p",
+          "Hop " +
+            hop.ttl +
+            ": " +
+            (hop.ip || "Unknown") +
+            (hop.rtt ? " · " + hop.rtt + " ms" : ""),
+        ),
+      ),
+    );
+    (report.artifacts || []).forEach((path) =>
+      route.append(fileLink(path, "Nmap XML evidence ↗")),
+    );
+    card.append(route);
+    (report.warnings || []).forEach((w) => card.append(el("p", w, "error")));
+    const table = el("table"),
+      head = el("thead"),
+      tr = el("tr");
+    ["Hop", "Gateway", "Protocol", "Inferred blocked ports"].forEach((label) =>
+      tr.append(el("th", label)),
+    );
+    head.append(tr);
+    table.append(head);
+    const body = el("tbody");
+    (report.rows || []).forEach((row) => {
+      const tr = el("tr");
+      if (row.host === report.selected_gateway) tr.className = "dc";
+      tr.append(
+        el("td", String(row.hop)),
+        el("td", row.host),
+        el("td", row.protocol),
+        el(
+          "td",
+          row.ports.slice(0, 50).join(", ") +
+            (row.ports.length > 50
+              ? " … (" + row.ports.length + " ports)"
+              : ""),
+        ),
+      );
+      body.append(tr);
+    });
+    if (!(report.rows || []).length)
+      emptyBody(
+        body,
+        4,
+        "No blocking-point rows. See the status and prerequisite explanation above.",
+      );
+    table.append(body);
+    const wrap = el("div", undefined, "table-wrap");
+    wrap.append(table);
+    card.append(wrap);
+    const raw = el("details");
+    raw.dataset.key = report.id + ":raw";
+    raw.open = expanded.has(raw.dataset.key);
+    raw.append(el("summary", "Raw Nmap Firewalk output"));
+    raw.append(el("pre", report.raw_output || "No Firewalk script output."));
+    card.append(raw);
+    if (report.artifact)
+      card.append(fileLink(report.artifact, "Download structured report ↗"));
+
+    container.append(card);
+  });
+  if (!(data.firewalk_reports || []).length)
+    container.append(
+      el(
+        "p",
+        "No Firewalk exercises yet. Use Scan 61 in the instructor terminal.",
+        "muted",
+      ),
+    );
+}
 function render(data) {
   state = data;
   const meta = data.meta;
@@ -289,6 +449,7 @@ function render(data) {
   $("started").textContent = new Date(meta.start_time).toLocaleString();
   $("command").textContent = meta.nmap_syntax;
   services();
+  renderSpecialized(data);
   const hostBody = $("host-rows");
   hostBody.replaceChildren();
   data.hosts.forEach((h) => {
