@@ -522,3 +522,15 @@ dialog::backdrop {
   overflow-wrap: anywhere;
   font-size: 12px;
 }
+
+/* Port uncertainty remains visibly separate from confirmed open services. */
+tr.uncertain {
+  background: #efbd6909;
+}
+.uncertain-state {
+  color: var(--amber);
+  font-weight: 600;
+}
+.confirmed-state {
+  color: var(--green);
+}

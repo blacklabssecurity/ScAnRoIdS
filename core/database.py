@@ -60,6 +60,9 @@ def init_db(ctx):
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, message TEXT);
         """)
+        import_columns = {r[1] for r in conn.execute("PRAGMA table_info(imports)")}
+        if "parser_version" not in import_columns:
+            conn.execute("ALTER TABLE imports ADD COLUMN parser_version INTEGER NOT NULL DEFAULT 1")
         columns = {r[1] for r in conn.execute("PRAGMA table_info(scan_results)")}
         for name, definition in {
             "state": "TEXT DEFAULT 'open'",

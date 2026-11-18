@@ -463,6 +463,9 @@ def run(args):
             log_note(f"Session directory: {ctx.base_path}")
             if args.resume:
                 pre_flight_check(ctx)
+            # Refresh the managed guide on resume; do not leave stale recipes
+            # from a previous installation/tool-health state in the viewer.
+            capture_guide(ctx)
             for path in args.imports:
                 import_file(ctx, path)
             if args.compare:

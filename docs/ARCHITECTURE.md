@@ -67,3 +67,9 @@ Course JSON profiles contain scan settings; CLI arguments take precedence. Compa
 6. Add a fixture/stub test for eligibility, arguments and output interpretation. Test the actual tool/version in the Kali lab before calling it validated.
 
 An optional adapter's absence or failure should not corrupt the session or stop other independent work. The existing adapters keep individual public entry functions for troubleshooting and extension.
+
+## Port uncertainty in the viewer
+
+The dashboard displays `open`, `open|filtered`, `filtered`, and `unfiltered` observations with an explicit State column, Reason and a persistent state filter. Confirmed-open totals, most-services ranking, target exports, domain-controller matching, audit planning and external-tool handoffs continue to use confirmed `open` observations only. A no-response reason never overrides Nmap's state. Verification copy commands for uncertain ports omit version detection and NSE service scripts.
+
+Exact Nmap XML `extraports` port lists are retained. A single anonymous summary can be reconstructed only when a single-transport `scaninfo` scope and explicit-port complement match its count exactly. Ambiguous aggregate counts do not invent port identities. The importer version is recorded; old imports can be enriched on resume without replacing a newer existing port observation. Local-address detection and exclusions are unchanged.

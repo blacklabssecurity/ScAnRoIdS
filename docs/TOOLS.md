@@ -8,6 +8,7 @@ The application requires **Python 3.11 or newer** on Linux. Kali 2026.2 and cust
 | Scan engine | `nmap` | `nmap` |
 | Live packet capture | `dumpcap` | `wireshark-common` |
 | Offline packet inspection | `tshark`, `capinfos` | `tshark`, `wireshark-common` |
+| Basic offline packet preview | `tcpdump` | `tcpdump` (optional fallback) |
 | Interface discovery | `ip` | `iproute2` |
 | Web screenshots | `gowitness`, compatible Chrome/Chromium | `gowitness`, `chromium` |
 | Exploit reference lookup | `searchsploit` | `exploitdb` on Kali |
@@ -68,3 +69,13 @@ Live captures use `dumpcap`, Wireshark's dedicated capture utility. Nmap may sti
 A Tshark startup message such as `Couldn't load ... falco ... undefined symbol ...` instead indicates a plugin/shared-library compatibility problem. The live-capture path avoids that plugin dependency. Offline Tshark analysis still requires a consistent Wireshark/plugin/library installation; align those packages with the repositories used by your Kali/custom Debian build.
 
 Check capture availability using `command -v dumpcap` and `sudo dumpcap -D`. Check the separate analysis installation with `tshark --version`. For non-root capture, Debian/Kali can configure dumpcap permissions through `sudo dpkg-reconfigure wireshark-common` and membership in the `wireshark` group; a new login is needed after group membership changes. This does not grant Nmap raw-socket privileges or access to root-owned session directories.
+
+## Analysis recipes and root-owned captures
+
+Tshark analysis is checked independently of live dumpcap capture. A plugin/undefined-symbol message is considered unhealthy even if `tshark --version` exits zero. The dashboard and regenerated capture guide withhold Tshark commands in that case, retain `capinfos`, and offer a bounded `tcpdump -nn -r ... -c 200` preview if installed. The startup check is cached for up to 30 seconds. No package is removed or changed automatically.
+
+Use `dpkg -S '*falco-events.so'` to identify the owning package. Align the plugin and its Wireshark/gRPC/Abseil dependencies with a consistent Kali/Debian package set. If you do not need the optional Falco dissector, review removal of its owning package and dependencies through your package manager; do not delete arbitrary shared libraries. A successful dumpcap capture does not repair the separate Tshark analysis installation.
+
+The generated guide uses downloaded filenames. Download a PCAP through the authenticated dashboard into your own account and analyze that copy. Reading the original root-owned capture directly may produce `Permission denied`; running sudo fixes access only, not a plugin/library mismatch. Avoid running protocol analysis as root simply to read a saved file.
+
+If `capinfos` reports zero packets, there is nothing to decode regardless of display filter or plugin health. Check the scan target, capture interface and host filter. ScAnRoIdS still excludes local scanner IPs. Duplicate addresses between training VMs should be corrected in the lab network rather than disabling self-exclusion.

@@ -32,3 +32,9 @@ See `docs/VALIDATION.md` for exact checks and limits. A synthetic dashboard scre
 ## Capture startup compatibility fix
 
 Live capture now invokes `dumpcap` directly, rather than `tshark`. This avoids loading Tshark protocol/dissector plugins, including incompatible optional plugins that can abort startup with undefined-symbol errors. Dependency diagnostics distinguish dumpcap capture from Tshark offline analysis. Root/raw-socket requirements for Nmap are unchanged. Regression tests cover failed startup, successful capture lifecycle and dependency selection; live interface permissions still require validation on the lab machine.
+
+## Uncertain port observations and analysis readiness
+
+The viewer now shows uncertain Nmap states alongside confirmed open ports, with separate counts, state/reason fields, filtering and verification-only copy commands. Exact grouped port evidence in XML is recovered where possible; counts alone do not become invented port IDs. Automatic service enumeration remains restricted to confirmed open ports. Local-IP detection and --exclude behavior are unchanged.
+
+Offline recipes are generated from analysis-tool readiness. A detected Falco/undefined-symbol startup error withholds Tshark commands while capinfos and optional tcpdump remain available. The guide is refreshed on resume, uses downloaded filenames, and explains root-owned file access and zero-packet captures. This does not automatically repair or modify operating-system packages.

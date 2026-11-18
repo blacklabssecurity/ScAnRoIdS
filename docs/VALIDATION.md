@@ -4,7 +4,7 @@ Validated in a Debian 13 execution environment using Python 3.12. Python 3.11 co
 
 ## Automated checks
 
-**59 tests passed**, including the optional checks below:
+**68 tests passed**, including the optional checks below:
 
 - Nmap XML and GNMAP import, IPv6 address selection, discovery-only hosts, missing TTL, explicit closed/open|filtered states, malformed XML fallback and unchanged state on failed import.
 - Repeated imports, history retention, legacy database backup/deduplication, session resumption, complete domain-controller port matching and sanitized service paths.
@@ -64,3 +64,9 @@ This environment is not your Kali installation. Live Tshark/dumpcap permissions 
 Gowitness/Chromium, enum4linux/Samba, SNMP, NFS mounting and Gobuster require end-to-end tests against your training services and installed tool versions. Raw discovery, OS detection, decoys, idle scans, fragmentation, routing-protocol discovery, SCTP and proxy behavior depend on lab interfaces, routing and target responses. They have validated command plans and recorded diagnostics, not a claim of universal live compatibility.
 
 For first acceptance on Kali, run one small lab subnet through discovery → inspect raw output and PCAP → audit discovered ports → compare dashboard counts → exercise only the installed adapters → stop with Ctrl+C → resume/import the session. Keep a copy of an existing session before trying migration on valuable historical data.
+
+## Port uncertainty and analysis-readiness regression checks
+
+Additional tests verify uncertain states are visible without inflating confirmed-open totals or entering automatic audit/tool scope; exact grouped XML ports and single-summary complements; refusal to invent ports from ambiguous counts; legacy import enrichment without overwriting newer state; plugin startup errors with exit code zero; healthy startup; permission/zero-packet guide text; and skipping unhealthy Tshark analysis in favor of available alternatives.
+
+Browser checks for this update also passed for visible uncertainty/state/reason, unchanged confirmed-open counts, persistence of the state filter, no host-list link for unconfirmed services, withheld Tshark recipes under a simulated plugin failure, an available tcpdump alternative, and mobile layout without page overflow. No JavaScript page errors were observed.

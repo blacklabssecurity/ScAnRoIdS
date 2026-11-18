@@ -11,6 +11,7 @@ let settings = {
   direction: 1,
   search: "",
   protocol: "",
+  portState: "",
   interesting: false,
   page: 0,
   tab: "results",
@@ -116,6 +117,10 @@ function services() {
   const rows = state.results.filter(
     (row) =>
       (!settings.protocol || row.protocol === settings.protocol) &&
+      (!settings.portState ||
+        (settings.portState === "uncertain"
+          ? row.state !== "open"
+          : row.state === settings.portState)) &&
       (!settings.interesting || row.is_interesting) &&
       terms.every((term) =>
         [
@@ -126,6 +131,8 @@ function services() {
           row.product,
           row.version,
           row.protocol,
+          row.state,
+          row.reason,
         ]
           .join(" ")
           .toLowerCase()
@@ -165,6 +172,7 @@ function services() {
     const tr = el("tr");
     tr.classList.toggle("interesting", !!row.is_interesting);
     tr.classList.toggle("dc", !!row.is_dc);
+    tr.classList.toggle("uncertain", row.state !== "open");
     tr.append(el("td", row.ip), el("td", row.os_guess || "Unknown"));
     const port = el("td", `${row.port}/${row.protocol}`);
     if (row.suggestion) {
@@ -189,7 +197,9 @@ function services() {
       ),
     );
     const shared = el("td");
-    shared.append(fileLink("targets/" + row.service_link, "Host list ↗"));
+    if (row.state === "open")
+      shared.append(fileLink("targets/" + row.service_link, "Host list ↗"));
+    else shared.append(el("span", "Unconfirmed", "muted"));
     const evidence = el("td"),
       button = el("button", "Inspect");
     button.onclick = () => {
@@ -210,6 +220,11 @@ function services() {
     tr.append(
       port,
       service,
+      el(
+        "td",
+        row.state,
+        row.state === "open" ? "confirmed-state" : "uncertain-state",
+      ),
       el("td", row.reason || "—"),
       distance,
       shared,
@@ -220,10 +235,10 @@ function services() {
   if (!rows.length)
     emptyBody(
       body,
-      8,
+      9,
       state.results.length
         ? "No services match these filters."
-        : "No confirmed open services yet. Discovery-only hosts appear in Hosts.",
+        : "No open or uncertain port observations yet. Discovery-only hosts appear in Hosts.",
     );
   $("result-total").textContent = `(${rows.length})`;
   $("pagination").textContent =
@@ -259,9 +274,13 @@ function render(data) {
   $("host-count").textContent = data.hosts.filter(
     (h) => h.state === "up",
   ).length;
-  $("service-count").textContent = data.results.length;
+  $("service-count").textContent = data.confirmed_open;
+  $("uncertain-count").textContent = data.uncertain;
+  renderAnalysis(data.analysis);
   const counts = new Map();
-  data.results.forEach((r) => counts.set(r.ip, (counts.get(r.ip) || 0) + 1));
+  data.results
+    .filter((r) => r.state === "open")
+    .forEach((r) => counts.set(r.ip, (counts.get(r.ip) || 0) + 1));
   $("juicy").textContent =
     [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
   $("phase").textContent = meta.scan_phase;
@@ -435,6 +454,12 @@ async function loadTopology() {
 }
 $("search").value = settings.search;
 $("protocol").value = settings.protocol;
+$("port-state").value = settings.portState || "";
+$("port-state").onchange = (e) => {
+  settings.portState = e.target.value;
+  settings.page = 0;
+  services();
+};
 $("interesting").checked = settings.interesting;
 $("search").oninput = (e) => {
   settings.search = e.target.value;
@@ -478,35 +503,58 @@ $("pause-log").onclick = () => {
   scrollLogs = !scrollLogs;
   $("pause-log").textContent = scrollLogs ? "Pause scroll" : "Resume scroll";
 };
-const recipes = [
-  ["Capture summary", "capinfos '<capture>'"],
-  ["Protocol hierarchy", "tshark -r '<capture>' -n -q -z io,phs"],
-  ["IP conversations", "tshark -r '<capture>' -n -q -z conv,ip"],
-  [
-    "DNS questions",
-    "tshark -r '<capture>' -n -Y dns.qry.name -T fields -e frame.time -e ip.src -e dns.qry.name",
-  ],
-  [
-    "HTTP requests",
-    "tshark -r '<capture>' -n -Y http.request -T fields -e ip.src -e http.host -e http.request.method -e http.request.uri",
-  ],
-  [
-    "TLS handshakes / SNI",
-    "tshark -r '<capture>' -n -Y tls.handshake -T fields -e ip.dst -e tls.handshake.type -e tls.handshake.extensions_server_name",
-  ],
-  ["SMB / RPC", "tshark -r '<capture>' -n -Y 'smb || smb2 || dcerpc'"],
-  [
-    "ARP discovery",
-    "tshark -r '<capture>' -n -Y arp -T fields -e arp.src.proto_ipv4 -e arp.src.hw_mac",
-  ],
-];
-recipes.forEach(([title, command]) => {
-  const div = el("div", undefined, "recipe"),
-    button = el("button", "Copy");
-  button.onclick = () => copy(command);
-  div.append(el("h2", title), el("pre", command), button);
-  $("analysis-recipes").append(div);
-});
+let analysisSignature = "";
+function renderAnalysis(health) {
+  if (!health) return;
+  const signature = JSON.stringify(health);
+  if (signature === analysisSignature) return;
+  analysisSignature = signature;
+  const ready = health.tshark === "ready";
+  $("analysis-status").textContent = ready
+    ? "Tshark analysis is available on the instructor host."
+    : "Tshark analysis unavailable: " +
+      health.detail +
+      " Live dumpcap capture is independent. Repair the plugin/library installation before using Tshark filters.";
+  const recipes = [];
+  if (health.capinfos)
+    recipes.push(["Capture summary", "capinfos '<capture>'"]);
+  if (health.tcpdump)
+    recipes.push([
+      "Packet preview without Tshark plugins",
+      "tcpdump -nn -r '<capture>' -c 200",
+    ]);
+  if (ready)
+    recipes.push(
+      ["Protocol hierarchy", "tshark -r '<capture>' -n -q -z io,phs"],
+      ["IP conversations", "tshark -r '<capture>' -n -q -z conv,ip"],
+      [
+        "DNS questions",
+        "tshark -r '<capture>' -n -Y dns.qry.name -T fields -e frame.time -e ip.src -e dns.qry.name",
+      ],
+      [
+        "HTTP requests",
+        "tshark -r '<capture>' -n -Y http.request -T fields -e ip.src -e http.host -e http.request.method -e http.request.uri",
+      ],
+      [
+        "TLS handshakes / SNI",
+        "tshark -r '<capture>' -n -Y tls.handshake -T fields -e ip.dst -e tls.handshake.type -e tls.handshake.extensions_server_name",
+      ],
+      ["SMB / RPC", "tshark -r '<capture>' -n -Y 'smb || smb2 || dcerpc'"],
+      [
+        "ARP discovery",
+        "tshark -r '<capture>' -n -Y arp -T fields -e arp.src.proto_ipv4 -e arp.src.hw_mac",
+      ],
+    );
+  const container = $("analysis-recipes");
+  container.replaceChildren();
+  recipes.forEach(([title, command]) => {
+    const div = el("div", undefined, "recipe"),
+      button = el("button", "Copy");
+    button.onclick = () => copy(command);
+    div.append(el("h2", title), el("pre", command), button);
+    container.append(div);
+  });
+}
 const source = new EventSource("/api/events");
 source.onmessage = (message) => {
   const record = JSON.parse(message.data);
