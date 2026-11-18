@@ -51,6 +51,26 @@ def artifact_path(ctx, relative):
 
 
 def _suggestion(row):
+    if row["state"] != "open":
+        # An unanswered probe is not proof of an open service. Offer verification
+        # only; do not suggest service/version scripts against uncertain results.
+        return shlex.join(
+            [
+                "nmap",
+                "-Pn",
+                "-n",
+                "-sU"
+                if row["protocol"] == "udp"
+                else "-sY"
+                if row["protocol"] == "sctp"
+                else "-sT",
+                *(["-6"] if ":" in row["ip"] else []),
+                "-p",
+                str(row["port"]),
+                "--reason",
+                row["ip"],
+            ]
+        )
     flags = (
         UDP_SUGGESTIONS
         if row["protocol"] == "udp"
@@ -112,7 +132,7 @@ def snapshot(ctx):
         results = [
             dict(r)
             for r in conn.execute("""SELECT s.* FROM scan_results s JOIN hosts h
-                ON h.ip=s.ip WHERE s.state='open' AND h.state='up' ORDER BY s.ip,s.port,s.protocol""")
+                ON h.ip=s.ip WHERE s.state IN ('open','open|filtered','filtered','unfiltered') AND h.state='up' ORDER BY s.ip,s.port,s.protocol""")
         ]
         jobs = [dict(r) for r in conn.execute("SELECT * FROM jobs ORDER BY started DESC LIMIT 500")]
         imports = [
@@ -139,7 +159,26 @@ def snapshot(ctx):
                 artifacts.append(dict(path=relative, size=safe.stat().st_size))
             if len(artifacts) >= 5000:
                 break
+    from modules.analysis import analysis_status
+    from core.zombies import candidate_rows, validation_history
+
+    with connect(ctx.db_path) as conn:
+        reports = []
+        for row in conn.execute(
+            "SELECT data FROM specialized_reports WHERE kind='firewalk' ORDER BY created DESC,id DESC LIMIT 20"
+        ):
+            try:
+                reports.append(json.loads(row["data"]))
+            except ValueError:
+                continue
+
     return dict(
+        zombie_candidates=candidate_rows(ctx),
+        zombie_history=validation_history(ctx),
+        firewalk_reports=reports,
+        analysis=analysis_status(),
+        confirmed_open=sum(row["state"] == "open" for row in results),
+        uncertain=sum(row["state"] != "open" for row in results),
         meta=meta,
         hosts=hosts,
         results=results,

@@ -11,6 +11,7 @@ let settings = {
   direction: 1,
   search: "",
   protocol: "",
+  portState: "",
   interesting: false,
   page: 0,
   tab: "results",
@@ -64,6 +65,8 @@ function showTab(tab) {
       "artifacts",
       "history",
       "analysis",
+      "zombies",
+      "firewalk",
     ].includes(tab)
   )
     tab = "results";
@@ -116,6 +119,10 @@ function services() {
   const rows = state.results.filter(
     (row) =>
       (!settings.protocol || row.protocol === settings.protocol) &&
+      (!settings.portState ||
+        (settings.portState === "uncertain"
+          ? row.state !== "open"
+          : row.state === settings.portState)) &&
       (!settings.interesting || row.is_interesting) &&
       terms.every((term) =>
         [
@@ -126,6 +133,8 @@ function services() {
           row.product,
           row.version,
           row.protocol,
+          row.state,
+          row.reason,
         ]
           .join(" ")
           .toLowerCase()
@@ -165,6 +174,7 @@ function services() {
     const tr = el("tr");
     tr.classList.toggle("interesting", !!row.is_interesting);
     tr.classList.toggle("dc", !!row.is_dc);
+    tr.classList.toggle("uncertain", row.state !== "open");
     tr.append(el("td", row.ip), el("td", row.os_guess || "Unknown"));
     const port = el("td", `${row.port}/${row.protocol}`);
     if (row.suggestion) {
@@ -189,7 +199,9 @@ function services() {
       ),
     );
     const shared = el("td");
-    shared.append(fileLink("targets/" + row.service_link, "Host list ↗"));
+    if (row.state === "open")
+      shared.append(fileLink("targets/" + row.service_link, "Host list ↗"));
+    else shared.append(el("span", "Unconfirmed", "muted"));
     const evidence = el("td"),
       button = el("button", "Inspect");
     button.onclick = () => {
@@ -210,6 +222,11 @@ function services() {
     tr.append(
       port,
       service,
+      el(
+        "td",
+        row.state,
+        row.state === "open" ? "confirmed-state" : "uncertain-state",
+      ),
       el("td", row.reason || "—"),
       distance,
       shared,
@@ -220,10 +237,10 @@ function services() {
   if (!rows.length)
     emptyBody(
       body,
-      8,
+      9,
       state.results.length
         ? "No services match these filters."
-        : "No confirmed open services yet. Discovery-only hosts appear in Hosts.",
+        : "No open or uncertain port observations yet. Discovery-only hosts appear in Hosts.",
     );
   $("result-total").textContent = `(${rows.length})`;
   $("pagination").textContent =
@@ -244,6 +261,164 @@ function services() {
     );
   save();
 }
+function zombieTable(id, rows) {
+  const body = $(id);
+  body.replaceChildren();
+  rows.forEach((row) => {
+    const tr = el("tr"),
+      evidence = el("td");
+    if (row.artifact)
+      evidence.append(fileLink(row.artifact, "Raw evidence ↗"));
+    else evidence.textContent = "—";
+    tr.append(
+      el("td", row.ip + ":" + (row.probe_port ?? "?")),
+      el("td", row.status),
+      el("td", row.classification || "No classification"),
+      el("td", row.method),
+      el("td", new Date(row.checked).toLocaleString()),
+      el("td", row.reason),
+      evidence,
+    );
+    body.append(tr);
+  });
+  if (!rows.length)
+    emptyBody(
+      body,
+      7,
+      "No candidate observations yet. Use Scan 60 in the instructor terminal.",
+    );
+}
+function renderSpecialized(data) {
+  zombieTable("zombie-rows", data.zombie_candidates || []);
+  zombieTable("zombie-history", data.zombie_history || []);
+  const container = $("firewalk-reports");
+  const expanded = new Set(
+    [...container.querySelectorAll("details[open]")].map(
+      (node) => node.dataset.key,
+    ),
+  );
+  container.replaceChildren();
+  (data.firewalk_reports || []).forEach((report) => {
+    const card = el("article", undefined, "firewalk-card");
+    card.append(
+      el("h2", report.target + " · " + report.status),
+      el("p", report.summary || ""),
+      el(
+        "p",
+        "Gateway focus: " +
+          (report.selected_gateway || "Not selected") +
+          " · " +
+          (report.settings?.protocol || "unknown") +
+          " · " +
+          new Date(report.started).toLocaleString(),
+        "muted small",
+      ),
+    );
+    if (report.gateway_selection)
+      card.append(el("p", report.gateway_selection, "muted small"));
+    const route = el("details");
+    route.dataset.key = report.id + ":route";
+    route.open = expanded.has(route.dataset.key);
+    route.append(el("summary", "Measured path and probe settings"));
+    const settings = report.settings || {};
+    route.append(
+      el(
+        "p",
+        "TCP: " +
+          (settings.tcp_ports || []).join(", ") +
+          " · UDP: " +
+          (settings.udp_ports || []).join(", "),
+      ),
+    );
+    route.append(
+      el(
+        "p",
+        "Max eligible ports: " +
+          settings.max_ports +
+          " · Retries: " +
+          settings.retries +
+          " · Parallel: " +
+          settings.parallel +
+          " · Timeouts: " +
+          settings.probe_ms +
+          "/" +
+          settings.recv_ms +
+          " ms",
+      ),
+    );
+    (report.final_trace || report.trace || []).forEach((hop) =>
+      route.append(
+        el(
+          "p",
+          "Hop " +
+            hop.ttl +
+            ": " +
+            (hop.ip || "Unknown") +
+            (hop.rtt ? " · " + hop.rtt + " ms" : ""),
+        ),
+      ),
+    );
+    (report.artifacts || []).forEach((path) =>
+      route.append(fileLink(path, "Nmap XML evidence ↗")),
+    );
+    card.append(route);
+    (report.warnings || []).forEach((w) => card.append(el("p", w, "error")));
+    const table = el("table"),
+      head = el("thead"),
+      tr = el("tr");
+    ["Hop", "Gateway", "Protocol", "Inferred blocked ports"].forEach((label) =>
+      tr.append(el("th", label)),
+    );
+    head.append(tr);
+    table.append(head);
+    const body = el("tbody");
+    (report.rows || []).forEach((row) => {
+      const tr = el("tr");
+      if (row.host === report.selected_gateway) tr.className = "dc";
+      tr.append(
+        el("td", String(row.hop)),
+        el("td", row.host),
+        el("td", row.protocol),
+        el(
+          "td",
+          row.ports.slice(0, 50).join(", ") +
+            (row.ports.length > 50
+              ? " … (" + row.ports.length + " ports)"
+              : ""),
+        ),
+      );
+      body.append(tr);
+    });
+    if (!(report.rows || []).length)
+      emptyBody(
+        body,
+        4,
+        "No blocking-point rows. See the status and prerequisite explanation above.",
+      );
+    table.append(body);
+    const wrap = el("div", undefined, "table-wrap");
+    wrap.append(table);
+    card.append(wrap);
+    const raw = el("details");
+    raw.dataset.key = report.id + ":raw";
+    raw.open = expanded.has(raw.dataset.key);
+    raw.append(el("summary", "Raw Nmap Firewalk output"));
+    raw.append(el("pre", report.raw_output || "No Firewalk script output."));
+    card.append(raw);
+    if (report.artifact)
+      card.append(fileLink(report.artifact, "Download structured report ↗"));
+
+    container.append(card);
+  });
+  if (!(data.firewalk_reports || []).length)
+    container.append(
+      el(
+        "p",
+        "No Firewalk exercises yet. Use Scan 61 in the instructor terminal.",
+        "muted",
+      ),
+    );
+}
 function render(data) {
   state = data;
   const meta = data.meta;
@@ -259,9 +434,13 @@ function render(data) {
   $("host-count").textContent = data.hosts.filter(
     (h) => h.state === "up",
   ).length;
-  $("service-count").textContent = data.results.length;
+  $("service-count").textContent = data.confirmed_open;
+  $("uncertain-count").textContent = data.uncertain;
+  renderAnalysis(data.analysis);
   const counts = new Map();
-  data.results.forEach((r) => counts.set(r.ip, (counts.get(r.ip) || 0) + 1));
+  data.results
+    .filter((r) => r.state === "open")
+    .forEach((r) => counts.set(r.ip, (counts.get(r.ip) || 0) + 1));
   $("juicy").textContent =
     [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
   $("phase").textContent = meta.scan_phase;
@@ -270,6 +449,7 @@ function render(data) {
   $("started").textContent = new Date(meta.start_time).toLocaleString();
   $("command").textContent = meta.nmap_syntax;
   services();
+  renderSpecialized(data);
   const hostBody = $("host-rows");
   hostBody.replaceChildren();
   data.hosts.forEach((h) => {
@@ -435,6 +615,12 @@ async function loadTopology() {
 }
 $("search").value = settings.search;
 $("protocol").value = settings.protocol;
+$("port-state").value = settings.portState || "";
+$("port-state").onchange = (e) => {
+  settings.portState = e.target.value;
+  settings.page = 0;
+  services();
+};
 $("interesting").checked = settings.interesting;
 $("search").oninput = (e) => {
   settings.search = e.target.value;
@@ -478,35 +664,58 @@ $("pause-log").onclick = () => {
   scrollLogs = !scrollLogs;
   $("pause-log").textContent = scrollLogs ? "Pause scroll" : "Resume scroll";
 };
-const recipes = [
-  ["Capture summary", "capinfos '<capture>'"],
-  ["Protocol hierarchy", "tshark -r '<capture>' -n -q -z io,phs"],
-  ["IP conversations", "tshark -r '<capture>' -n -q -z conv,ip"],
-  [
-    "DNS questions",
-    "tshark -r '<capture>' -n -Y dns.qry.name -T fields -e frame.time -e ip.src -e dns.qry.name",
-  ],
-  [
-    "HTTP requests",
-    "tshark -r '<capture>' -n -Y http.request -T fields -e ip.src -e http.host -e http.request.method -e http.request.uri",
-  ],
-  [
-    "TLS handshakes / SNI",
-    "tshark -r '<capture>' -n -Y tls.handshake -T fields -e ip.dst -e tls.handshake.type -e tls.handshake.extensions_server_name",
-  ],
-  ["SMB / RPC", "tshark -r '<capture>' -n -Y 'smb || smb2 || dcerpc'"],
-  [
-    "ARP discovery",
-    "tshark -r '<capture>' -n -Y arp -T fields -e arp.src.proto_ipv4 -e arp.src.hw_mac",
-  ],
-];
-recipes.forEach(([title, command]) => {
-  const div = el("div", undefined, "recipe"),
-    button = el("button", "Copy");
-  button.onclick = () => copy(command);
-  div.append(el("h2", title), el("pre", command), button);
-  $("analysis-recipes").append(div);
-});
+let analysisSignature = "";
+function renderAnalysis(health) {
+  if (!health) return;
+  const signature = JSON.stringify(health);
+  if (signature === analysisSignature) return;
+  analysisSignature = signature;
+  const ready = health.tshark === "ready";
+  $("analysis-status").textContent = ready
+    ? "Tshark analysis is available on the instructor host."
+    : "Tshark analysis unavailable: " +
+      health.detail +
+      " Live dumpcap capture is independent. Repair the plugin/library installation before using Tshark filters.";
+  const recipes = [];
+  if (health.capinfos)
+    recipes.push(["Capture summary", "capinfos '<capture>'"]);
+  if (health.tcpdump)
+    recipes.push([
+      "Packet preview without Tshark plugins",
+      "tcpdump -nn -r '<capture>' -c 200",
+    ]);
+  if (ready)
+    recipes.push(
+      ["Protocol hierarchy", "tshark -r '<capture>' -n -q -z io,phs"],
+      ["IP conversations", "tshark -r '<capture>' -n -q -z conv,ip"],
+      [
+        "DNS questions",
+        "tshark -r '<capture>' -n -Y dns.qry.name -T fields -e frame.time -e ip.src -e dns.qry.name",
+      ],
+      [
+        "HTTP requests",
+        "tshark -r '<capture>' -n -Y http.request -T fields -e ip.src -e http.host -e http.request.method -e http.request.uri",
+      ],
+      [
+        "TLS handshakes / SNI",
+        "tshark -r '<capture>' -n -Y tls.handshake -T fields -e ip.dst -e tls.handshake.type -e tls.handshake.extensions_server_name",
+      ],
+      ["SMB / RPC", "tshark -r '<capture>' -n -Y 'smb || smb2 || dcerpc'"],
+      [
+        "ARP discovery",
+        "tshark -r '<capture>' -n -Y arp -T fields -e arp.src.proto_ipv4 -e arp.src.hw_mac",
+      ],
+    );
+  const container = $("analysis-recipes");
+  container.replaceChildren();
+  recipes.forEach(([title, command]) => {
+    const div = el("div", undefined, "recipe"),
+      button = el("button", "Copy");
+    button.onclick = () => copy(command);
+    div.append(el("h2", title), el("pre", command), button);
+    container.append(div);
+  });
+}
 const source = new EventSource("/api/events");
 source.onmessage = (message) => {
   const record = JSON.parse(message.data);

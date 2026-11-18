@@ -45,7 +45,7 @@ Target files are derived exports, never the audit source of truth. Only open ser
 
 The audit planner groups known open ports by host and transport. TCP, UDP and SCTP are separate jobs, run sequentially. Scan 52 explicitly expands to all ports and requires confirmation (or `--expand-all-ports` in batch mode). Host-only discovery must be followed by port discovery before an audit is possible. Industrial-service ports are omitted from automatic audits unless the instructor explicitly includes them.
 
-Packet capture starts before each network job with a two-second startup check. Numeric Nmap port lists become transport-specific BPF terms with ICMP feedback. Ranges use `net`, IP lists use grouped `host` expressions, and idle scans capture the zombie exchange. Discovery protocols use ARP, DNS, ICMPv6, EIGRP or OSPF filters as appropriate. RPC/NFS and multi-step external tools use a target-scoped filter so dynamic service ports remain visible. A failed capture is never silently replaced with an unrestricted capture.
+Dumpcap packet capture starts before each network job after it confirms its capture file is ready. Numeric Nmap port lists become transport-specific BPF terms with ICMP feedback. Ranges use `net`, IP lists use grouped `host` expressions, and idle scans capture the zombie exchange. Discovery protocols use ARP, DNS, ICMPv6, EIGRP or OSPF filters as appropriate. RPC/NFS and multi-step external tools use a target-scoped filter so dynamic service ports remain visible. A failed capture is never silently replaced with an unrestricted capture.
 
 Process groups, including helpers, are terminated and reaped on completion, error, timeout or Ctrl+C. Nmap failure is stored as failure even when usable partial artifacts can still be imported. The dashboard stays up after scans; Ctrl+C or `q` closes the controller and viewer server.
 
@@ -67,3 +67,23 @@ Course JSON profiles contain scan settings; CLI arguments take precedence. Compa
 6. Add a fixture/stub test for eligibility, arguments and output interpretation. Test the actual tool/version in the Kali lab before calling it validated.
 
 An optional adapter's absence or failure should not corrupt the session or stop other independent work. The existing adapters keep individual public entry functions for troubleshooting and extension.
+
+## Port uncertainty in the viewer
+
+The dashboard displays `open`, `open|filtered`, `filtered`, and `unfiltered` observations with an explicit State column, Reason and a persistent state filter. Confirmed-open totals, most-services ranking, target exports, domain-controller matching, audit planning and external-tool handoffs continue to use confirmed `open` observations only. A no-response reason never overrides Nmap's state. Verification copy commands for uncertain ports omit version detection and NSE service scripts.
+
+Exact Nmap XML `extraports` port lists are retained. A single anonymous summary can be reconstructed only when a single-transport `scaninfo` scope and explicit-port complement match its count exactly. Ambiguous aggregate counts do not invent port identities. The importer version is recorded; old imports can be enriched on resume without replacing a newer existing port observation. Local-address detection and exclusions are unchanged.
+
+## Routed capture interfaces and lifecycle evidence
+
+An ordinary routed scan defaults to Linux's `any` capture interface while retaining its target BPF scope. This captures SYN/raw traffic and TCP-connect/version/script traffic on whichever NIC the OS route selects. An explicit physical `--interface` is checked against bounded local `ip -j route get` samples before a network job; a known mismatch stops the job with a clear diagnostic. Local/broadcast/multicast profiles keep a physical interface. These checks do not change kernel routing, local address detection, self-exclusions or Nmap target scope.
+
+Detailed discovery profiles 40–46 retain all target-scoped traffic, including ARP and Nmap host-discovery probes outside the service-port list. Audit jobs retain their per-host/per-transport port filters and ICMP feedback. `any` does not mean unrestricted capture: BPF target scope remains active.
+
+Dumpcap must emit its `File:` readiness message and create the capture file before the scan starts. Shutdown sends SIGINT and waits for graceful completion, with process-group cleanup as a fallback. Each `<stem>_capture.json` records the selected interface, BPF, route samples, packet count, status and any forced stop. Empty/unverified captures raise visible events. If a completed Nmap job confirms open services but capture reports zero packets, scan artifacts are retained and the overall operation reports a capture failure rather than full success.
+
+## Specialized evidence
+
+`core/zombies.py` stores candidate observations and append-only fresh checks in `zombie_checks`, independently of assessment target exports. XML parser version 3 enriches older imports without overwriting newer assessment state. `modules/zombie.py` validates selected candidates before idle scans.
+
+`modules/firewalker.py` coordinates captured route/port preflight and conditional Firewalk execution, retaining JSON/text reports in `specialized_reports` plus raw Nmap evidence. Gateway selection is report focus; the Nmap engine probes the measured path. The viewer exposes both evidence types through read-only snapshot fields and existing contained artifact downloads.

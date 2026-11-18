@@ -6,7 +6,7 @@ An instructor-controlled network discovery and audit workspace for Kali Linux an
 
 ## Install and check dependencies
 
-Requires Python 3.11+, Nmap, and Tshark when capture is enabled. Optional tools are listed with their executable/package names in [Tools and installation](docs/TOOLS.md).
+Requires Python 3.11+, Nmap, and dumpcap when capture is enabled. Optional tools are listed with their executable/package names in [Tools and installation](docs/TOOLS.md).
 
 ```bash
 ./setup_scanRoids.sh
@@ -18,10 +18,12 @@ The setup script creates `.venv` beside the source and installs Python dependenc
 ## Start an instructor session
 
 ```bash
-sudo .venv/bin/python main.py --customer CourseLab --interface eth0
+sudo .venv/bin/python main.py --customer CourseLab --interface any
 ```
 
 The supplied scan menu is preserved. Select an ID and provide an IP, CIDR, IPv4 last-octet range, or `-iL /path/to/hosts.txt`. Discovery, auditing and optional tool offers stay in the terminal. The viewer listens on port 8888. Use the Kali machine's LAN address from other workstations.
+
+During a session, use **`b` = back** at an option prompt to cancel the remaining workflow and return to the main scan-ID prompt. Use **`q` = exit** to end the session and close the dashboard, including from a nested prompt. Completed scans and saved artifacts are retained. At the main menu, `b` simply redraws the menu. These commands are recognized while awaiting input; Ctrl+C remains the way to interrupt an actively running job/session.
 
 Default viewer credentials are `operator` / `CourseLab_<current-year>`. Set `SCANROIDS_PASSWORD` to override the password. After a scan, the viewer stays available and the terminal accepts more jobs. Ctrl+C or `q` stops the session and server.
 
@@ -54,7 +56,7 @@ Try the bundled synthetic evidence without scanning anything:
   --scan 40 --targets 192.0.2.0/28 --dry-run
 
 # Run one requested scan without prompts, then exit.
-sudo .venv/bin/python main.py --customer CourseLab --interface eth0 \
+sudo .venv/bin/python main.py --customer CourseLab --interface any \
   --scan 40 --targets 192.0.2.0/28 --non-interactive --exit-after
 
 # Audit discovered open ports in an existing session, then exit.
@@ -68,7 +70,13 @@ sudo .venv/bin/python main.py --resume /path/to/session --interface eth0 \
 
 Documentation ranges above are placeholders; substitute your training network. `--audit` continues discovery into an audit. `--include-industrial` explicitly includes discovered ICS ports; `--expand-all-ports` confirms scan 52's expanded scope. `--tools --greedy` runs applicable enumeration adapters automatically in batch mode. Custom phase-2 audit flags use `--scan 99 --phase 2 --flags '...'`.
 
-`--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Run `--help` for all options.
+`--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Routed scans capture on Linux `any` by default; `--interface any` selects it explicitly. If you select a physical capture interface, it must match the target route (`ip route get <target>`). Local ARP/multicast discovery requires a physical interface. Run `--help` for all options.
+
+## Zombie and Firewalk exercises
+
+Scan 60 now offers explicit hunt scope and optional OS detection. Scan 05 provides a saved-candidate picker and fresh IPID validation with durable history. See [Zombie workflow](docs/ZOMBIES.md).
+
+Scan 61 now provides TCP/UDP selection, bounded tuning, measured-route prerequisites, gateway report focus, router-ICMP capture and dedicated dashboard reports. See [Firewalk workflow](docs/FIREWALK.md) for interpretation and CLI examples.
 
 ## Teaching and extension
 

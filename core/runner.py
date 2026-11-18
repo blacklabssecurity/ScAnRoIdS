@@ -8,6 +8,8 @@ Purpose: Own subprocess groups, stream output, persist job state and finalize ca
 from contextlib import contextmanager
 from datetime import datetime
 import os
+import json
+import re
 from pathlib import Path
 import selectors
 import shlex
@@ -177,29 +179,47 @@ def run_command(
     return dict(id=job_id, status=status, returncode=returncode, log=log_path)
 
 
+CAPTURE_STARTUP_TIMEOUT = 10.0
+CAPTURE_SHUTDOWN_TIMEOUT = 10.0
+
+
+def capture_packet_count(text):
+    matches = re.findall(r"Packets captured:\s*(\d+)", text)
+    return int(matches[-1]) if matches else None
+
+
 @contextmanager
-def packet_capture(ctx, stem, capture_filter):
-    """A failed capture is visible and prevents a silently uncaptured scan."""
+def packet_capture(ctx, stem, capture_filter, *, interface=None, metadata=None):
+    """Wait for dumpcap readiness, drain on SIGINT, and retain diagnostic evidence."""
+    ctx.capture_result = None
     if not ctx.capture:
         yield None
         return
-    if not ctx.interface:
-        raise ValueError("Select an interface with --interface, or use --no-capture")
+    interface = interface or ctx.interface
+    if not interface:
+        raise ValueError("Select a capture interface or use --interface any")
     path = ctx.dirs["pcap"] / (stem + ".pcapng")
     log = ctx.dirs["logs"] / (stem + "_capture.log")
-    command = [
-        "tshark",
-        "-n",
-        "-i",
-        ctx.interface,
-        "-w",
-        str(path),
-        "-f",
-        capture_filter,
-        "-q",
-    ]
+    report_path = ctx.dirs["artifacts"] / (stem + "_capture.json")
+    command = ["dumpcap", "-i", interface, "-w", str(path), "-f", capture_filter, "-q"]
+    report = dict(
+        status="starting",
+        interface=interface,
+        filter=capture_filter,
+        command=shlex.join(command),
+        started=now(),
+        pcap=path.relative_to(ctx.base_path).as_posix(),
+        log=log.relative_to(ctx.base_path).as_posix(),
+        packets=None,
+        forced_stop=False,
+        **(metadata or {}),
+    )
+    print(f"[*] Capture interface: {interface} | Filter: {capture_filter}", flush=True)
     event(ctx.db_path, "Capture: " + shlex.join(command))
     proc = None
+    ready = False
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
     with log.open("wb") as output:
         try:
             proc = subprocess.Popen(
@@ -208,16 +228,61 @@ def packet_capture(ctx, stem, capture_filter):
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
+                env=env,
             )
-            # No network probes are launched until capture startup has been checked.
-            time.sleep(2)
-            if proc.poll() is not None:
-                raise RuntimeError(f"Packet capture failed: {log.read_text(errors='replace')}")
+            deadline = time.monotonic() + CAPTURE_STARTUP_TIMEOUT
+            while True:
+                text = log.read_text(errors="replace")
+                if proc.poll() is not None:
+                    raise RuntimeError(f"Packet capture failed before readiness: {text}")
+                # File: is emitted after capture-file setup. Alive alone, or a
+                # fixed two-second delay, does not establish readiness.
+                if re.search(r"(?m)^File:\s*", text) and path.exists():
+                    ready = True
+                    report["status"] = "ready"
+                    break
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"dumpcap did not confirm capture readiness within {CAPTURE_STARTUP_TIMEOUT}s: {text}"
+                    )
+                time.sleep(0.05)
+            event(ctx.db_path, f"Capture ready on {interface}: {path.name}")
             yield path
         finally:
-            stop_process(proc)
-            if proc is not None and proc.returncode not in (0, -signal.SIGTERM):
-                event(ctx.db_path, f"Capture exited {proc.returncode}; inspect {log.name}")
+            if proc is not None:
+                if proc.poll() is None:
+                    try:
+                        proc.send_signal(signal.SIGINT)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        proc.wait(timeout=CAPTURE_SHUTDOWN_TIMEOUT)
+                    except subprocess.TimeoutExpired:
+                        report["forced_stop"] = True
+                stop_process(proc)
+                report["returncode"] = proc.returncode
+            text = log.read_text(errors="replace")
+            count = capture_packet_count(text)
+            report.update(finished=now(), packets=count)
+            report["status"] = (
+                "startup_failed"
+                if not ready
+                else "failed"
+                if report["forced_stop"] or proc.returncode not in (0, -signal.SIGINT)
+                else "empty"
+                if count == 0
+                else "captured"
+                if count is not None
+                else "unverified"
+            )
+            report_path.write_text(json.dumps(report, indent=2) + "\n")
+            ctx.capture_result = report
+            if report["status"] != "captured":
+                message = f"WARNING: capture {report['status']} on {interface}; packets={count}; filter={capture_filter}. Inspect {log.name} and {report_path.name}. Check the target route and capture interface."
+                print("[!] " + message, flush=True)
+                event(ctx.db_path, message)
+            else:
+                event(ctx.db_path, f"Capture finalized: {count} packets on {interface}")
 
 
 """

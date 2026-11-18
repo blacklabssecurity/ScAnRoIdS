@@ -35,8 +35,95 @@ def os_guess(name, ttl):
     return "Network device/Unix (TTL estimate)"
 
 
+def incremental_ipid(value):
+    """Accept native and NSE classifications, including NSE punctuation/debug text.
+
+    Nmap ipidseq returns 'Incremental!'; a substring match would incorrectly
+    accept 'Broken incremental!', which is a different sequence classification.
+    """
+    return (
+        re.fullmatch(r"incremental!?(?:\s+\[used port \d+\])?", value.strip(), re.IGNORECASE)
+        is not None
+    )
+
+
 def service_slug(value):
     return re.sub(r"[^A-Za-z0-9_-]", "_", value or "unknown")[:80] or "unknown"
+
+
+def numeric_ports(expression):
+    """Expand an XML numeric port list, rejecting malformed/out-of-range values."""
+    ports = set()
+    for term in expression.split(","):
+        bounds = term.split("-")
+        if len(bounds) > 2 or not all(v.isdigit() for v in bounds):
+            raise ValueError("Invalid numeric port list in Nmap XML")
+        start, end = int(bounds[0]), int(bounds[-1])
+        if not 1 <= start <= end <= 65535:
+            raise ValueError("Out-of-range port in Nmap XML")
+        ports.update(range(start, end + 1))
+    return ports
+
+
+def grouped_ports(root, host):
+    """Recover exact XML extraports where IDs are explicit or uniquely determined.
+
+    Never guess a port ID from an aggregate count or from no-response alone.
+    Closed summaries can stay compact; they are not port-interest observations.
+    """
+    found = []
+    scans = {
+        scan.get("protocol"): numeric_ports(scan.get("services"))
+        for scan in root.findall("scaninfo")
+        if scan.get("services") and scan.get("protocol") in ("tcp", "udp", "sctp")
+    }
+    assigned = {proto: set() for proto in scans}
+    for port in host.findall("ports/port"):
+        if port.get("protocol") in assigned:
+            value = number(port.get("portid"))
+            if value is not None and 1 <= value <= 65535:
+                assigned[port.get("protocol")].add(value)
+    unresolved = []
+    for group in host.findall("ports/extraports"):
+        state = group.get("state", "unknown")
+        reasons = group.findall("extrareasons")
+        explicit = False
+        for reason in reasons:
+            proto = reason.get("proto")
+            if reason.get("ports") and proto in ("tcp", "udp", "sctp"):
+                ports = numeric_ports(reason.get("ports"))
+                assigned.setdefault(proto, set()).update(ports)
+                if state in ("open", "open|filtered", "filtered", "unfiltered"):
+                    found.extend(
+                        (proto, port, state, reason.get("reason", "")) for port in sorted(ports)
+                    )
+                explicit = True
+        if not explicit:
+            unresolved.append(group)
+    # A single remaining group in a single-transport scan has an exact
+    # complement. Multiple anonymous groups cannot be assigned safely.
+    if len(unresolved) == 1 and len(scans) == 1:
+        group = unresolved[0]
+        proto = next(iter(scans))
+        ports = scans[proto] - assigned[proto]
+        count = number(group.get("count"))
+        reason = group.find("extrareasons")
+        if count == len(ports) and group.get("state") in (
+            "open",
+            "open|filtered",
+            "filtered",
+            "unfiltered",
+        ):
+            found.extend(
+                (
+                    proto,
+                    port,
+                    group.get("state"),
+                    reason.get("reason", "") if reason is not None else "",
+                )
+                for port in sorted(ports)
+            )
+    return found
 
 
 def xml_records(path):
@@ -109,6 +196,27 @@ def xml_records(path):
                     service_link=f"{service_slug(service)}_{pnum}_{proto}/hosts_all.txt",
                 )
             )
+        known = {(service["protocol"], service["port"]) for service in record["services"]}
+        for proto, port, state, reason in grouped_ports(root, host):
+            if (proto, port) in known:
+                continue
+            record["services"].append(
+                dict(
+                    ip=address,
+                    os=record["os"],
+                    port=port,
+                    protocol=proto,
+                    state=state,
+                    service="unknown",
+                    reason=reason,
+                    ttl=None,
+                    hops=hops,
+                    product="",
+                    version="",
+                    scripts=[],
+                    service_link=f"unknown_{port}_{proto}/hosts_all.txt",
+                )
+            )
         sequence = host.find("ipidsequence")
         candidates = [sequence.get("class", "")] if sequence is not None else []
         candidates += [
@@ -116,7 +224,56 @@ def xml_records(path):
             for s in host.findall("hostscript/script")
             if s.get("id") == "ipidseq"
         ]
-        record["zombies"] = [s for s in candidates if s.lower().strip() == "incremental"]
+        record["zombies"] = [s for s in candidates if incremental_ipid(s)]
+        record["host_scripts"] = [
+            dict(id=s.get("id", ""), output=s.get("output", ""))
+            for s in host.findall("hostscript/script")
+        ]
+        record["ipid"] = []
+        scripts = [s for s in record["host_scripts"] if s["id"] == "ipidseq"]
+        for evidence in scripts:
+            output = evidence["output"]
+            port_match = re.search(
+                r"(?:ipidseq\.)?probeport=(\d+)", root.get("args", "")
+            ) or re.search(r"\[used port (\d+)\]", output)
+            if port_match:
+                probe = int(port_match[1])
+            else:
+                ports = [
+                    s
+                    for s in record["services"]
+                    if s["protocol"] == "tcp" and s["state"] in ("open", "closed")
+                ]
+                ports.sort(key=lambda s: (s["state"] != "open", s["port"]))
+                probe = ports[0]["port"] if ports else None
+            port_state = next(
+                (
+                    s["state"]
+                    for s in record["services"]
+                    if s["protocol"] == "tcp" and s["port"] == probe
+                ),
+                None,
+            )
+            record["ipid"].append(
+                dict(
+                    classification=output,
+                    incremental=incremental_ipid(output),
+                    probe_port=probe,
+                    port_state=port_state,
+                    method="ipidseq",
+                )
+            )
+        if not scripts and sequence is not None:
+            output = sequence.get("class", "")
+            record["ipid"].append(
+                dict(
+                    classification=output,
+                    incremental=incremental_ipid(output),
+                    probe_port=None,
+                    port_state=None,
+                    method="nmap-os",
+                )
+            )
         records.append(record)
     return records
 
@@ -194,10 +351,12 @@ def import_scan(path, ctx):
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     db = init_db(ctx)
     with connect(db) as conn:
-        exists = conn.execute("SELECT 1 FROM imports WHERE digest=?", (digest,)).fetchone()
+        exists = conn.execute(
+            "SELECT parser_version FROM imports WHERE digest=?", (digest,)
+        ).fetchone()
         if not exists:
             conn.execute(
-                "INSERT INTO imports VALUES (?,?,?,?)",
+                "INSERT INTO imports(digest,source,imported,records,parser_version) VALUES (?,?,?,?,3)",
                 (digest, path.name, now(), json.dumps(records)),
             )
             for host in records:
@@ -224,6 +383,28 @@ def import_scan(path, ctx):
                         (host["ip"],),
                     )
             update_dc_tags(conn)
+        elif exists["parser_version"] < 3:
+            # Enrich a legacy import without replaying old state over a newer
+            # observation. Existing port identities always retain their state.
+            for host in records:
+                for service in host["services"]:
+                    current = conn.execute(
+                        "SELECT 1 FROM scan_results WHERE ip=? AND port=? AND protocol=?",
+                        (service["ip"], service["port"], service["protocol"]),
+                    ).fetchone()
+                    if current is None:
+                        upsert_service(conn, service, digest)
+            conn.execute(
+                "UPDATE imports SET records=?,parser_version=3 WHERE digest=?",
+                (json.dumps(records), digest),
+            )
+            update_dc_tags(conn)
+        from core.zombies import record_observations
+
+        imported = conn.execute(
+            "SELECT imported FROM imports WHERE digest=?", (digest,)
+        ).fetchone()[0]
+        record_observations(conn, records, digest, imported)
     export_targets(ctx)
     return len({h["ip"] for h in records if h["state"] == "up"}), sum(
         s["state"] == "open" for h in records if h["state"] == "up" for s in h["services"]
@@ -331,6 +512,7 @@ def pre_flight_check(ctx):
         p
         for p in sorted(ctx.dirs["artifacts"].glob("*.gnmap"))
         if not p.with_suffix(".xml").exists()
+        and not p.name.startswith(("gowitness_targets_", "zombie_check_"))
     ]
     for path in paths:
         parse_results(path.with_suffix(".xml"), path.with_suffix(".gnmap"), ctx)

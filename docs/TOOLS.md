@@ -6,7 +6,9 @@ The application requires **Python 3.11 or newer** on Linux. Kali 2026.2 and cust
 |---|---|---|
 | Python environment | `python3`, venv/pip | `python3`, `python3-venv` |
 | Scan engine | `nmap` | `nmap` |
-| Packet capture and offline inspection | `tshark`, `capinfos` | `tshark`, `wireshark-common` |
+| Live packet capture | `dumpcap` | `wireshark-common` |
+| Offline packet inspection | `tshark`, `capinfos` | `tshark`, `wireshark-common` |
+| Basic offline packet preview | `tcpdump` | `tcpdump` (optional fallback) |
 | Interface discovery | `ip` | `iproute2` |
 | Web screenshots | `gowitness`, compatible Chrome/Chromium | `gowitness`, `chromium` |
 | Exploit reference lookup | `searchsploit` | `exploitdb` on Kali |
@@ -19,7 +21,7 @@ The application requires **Python 3.11 or newer** on Linux. Kali 2026.2 and cust
 | HTTP content discovery | `gobuster` | `gobuster` |
 | Proxy-connected TCP profiles | `proxychains4` | `proxychains4` |
 
-Only Nmap is needed for scans. Tshark and a usable interface are required when capture is enabled (the default). Other integrations are optional: unavailable tools are skipped with a diagnostic and do not erase scan results. Viewing or importing scans does not require Nmap, capture privileges or external tools.
+Only Nmap is needed for scans. Dumpcap and a usable interface are required when capture is enabled (the default). Other integrations are optional: unavailable tools are skipped with a diagnostic and do not erase scan results. Viewing or importing scans does not require Nmap, capture privileges or external tools.
 
 Python runtime dependencies are Flask and Waitress, with their transitive dependencies. `requirements.txt` specifies supported version ranges; `requirements-lock.txt` records the exact environment used for validation. No JavaScript CDN, npm build step, external database or Redis service is needed.
 
@@ -59,3 +61,33 @@ gowitness report server --host 127.0.0.1 --port 8889 --db-uri sqlite://gowitness
 ```
 
 The native dashboard gallery avoids separate authentication for remote viewers.
+
+## Capture startup and Tshark plugin failures
+
+Live captures use `dumpcap`, Wireshark's dedicated capture utility. Nmap may still require sudo for raw scan techniques, while dumpcap captures packets without loading Tshark's protocol/dissector plugins. A warning that an application is running as root is not by itself a capture failure.
+
+A Tshark startup message such as `Couldn't load ... falco ... undefined symbol ...` instead indicates a plugin/shared-library compatibility problem. The live-capture path avoids that plugin dependency. Offline Tshark analysis still requires a consistent Wireshark/plugin/library installation; align those packages with the repositories used by your Kali/custom Debian build.
+
+Check capture availability using `command -v dumpcap` and `sudo dumpcap -D`. Check the separate analysis installation with `tshark --version`. For non-root capture, Debian/Kali can configure dumpcap permissions through `sudo dpkg-reconfigure wireshark-common` and membership in the `wireshark` group; a new login is needed after group membership changes. This does not grant Nmap raw-socket privileges or access to root-owned session directories.
+
+## Analysis recipes and root-owned captures
+
+Tshark analysis is checked independently of live dumpcap capture. A plugin/undefined-symbol message is considered unhealthy even if `tshark --version` exits zero. The dashboard and regenerated capture guide withhold Tshark commands in that case, retain `capinfos`, and offer a bounded `tcpdump -nn -r ... -c 200` preview if installed. The startup check is cached for up to 30 seconds. No package is removed or changed automatically.
+
+Use `dpkg -S '*falco-events.so'` to identify the owning package. Align the plugin and its Wireshark/gRPC/Abseil dependencies with a consistent Kali/Debian package set. If you do not need the optional Falco dissector, review removal of its owning package and dependencies through your package manager; do not delete arbitrary shared libraries. A successful dumpcap capture does not repair the separate Tshark analysis installation.
+
+The generated guide uses downloaded filenames. Download a PCAP through the authenticated dashboard into your own account and analyze that copy. Reading the original root-owned capture directly may produce `Permission denied`; running sudo fixes access only, not a plugin/library mismatch. Avoid running protocol analysis as root simply to read a saved file.
+
+If `capinfos` reports zero packets, there is nothing to decode regardless of display filter or plugin health. Check the scan target, capture interface and host filter. ScAnRoIdS still excludes local scanner IPs. Duplicate addresses between training VMs should be corrected in the lab network rather than disabling self-exclusion.
+
+## Multi-interface Kali VMs
+
+Check `ip -br addr` and `ip route get <target>`. For example, a target routed through eth1 cannot be captured by listening only on eth0. This also applies to Nmap TCP-connect and NSE/version connections, which use OS routing.
+
+For routed scans use `--interface any`, or select the actual routed interface. With no explicit interface, routed jobs now default to `any`. Explicit physical-interface mismatches detected from local routes stop the job before scanning. ARP/multicast/local discovery still requires the physical interface connected to that segment. Target filters and local-IP exclusions remain enabled.
+
+Capture startup waits for dumpcap readiness instead of assuming a fixed delay is sufficient. After a job, inspect its `_capture.json` and `_capture.log` in the dashboard artifacts. They record interface, filter, route evidence, packet count and shutdown status. `empty` or `unverified` is reported explicitly; a nonempty PCAPNG header is not treated as proof that any packets were collected.
+
+## Specialized scan prerequisites
+
+Zombie workflows use standard Nmap `ipidseq` and idle-scan support; no additional Python or OS packages are needed. Firewalk uses standard Nmap `firewalk`, raw sockets and a routed target with measurable intermediate hops. Both use dumpcap through the shared capture runner. `--doctor` checks executables; each execution separately checks required NSE availability. See [Zombie workflows](ZOMBIES.md) and [Firewalk](FIREWALK.md) for scope, tuning and evidence interpretation.

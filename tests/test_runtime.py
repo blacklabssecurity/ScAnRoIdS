@@ -105,7 +105,7 @@ def test_scope_bpf_supports_cidr_ranges_and_host_files(tmp_path):
 
 def test_capture_ports_keep_protocols_separate():
     result = capture_filter(
-        SCAN_LIBRARY["44"], ["192.0.2.10"], ["-sS", "-sU", "-p", "T:22,80,U:161,500"]
+        {"capture": "scope"}, ["192.0.2.10"], ["-sS", "-sU", "-p", "T:22,80,U:161,500"]
     )
     assert "tcp port 22" in result and "tcp port 80" in result
     assert "udp port 161" in result and "udp port 500" in result
@@ -188,7 +188,7 @@ def test_missing_executable_is_failed_job(ctx):
 
 
 def test_capture_failure_stops_body(ctx, tmp_path, monkeypatch):
-    fake = tmp_path / "tshark"
+    fake = tmp_path / "dumpcap"
     fake.write_text('#!/bin/sh\necho "capture permission denied" >&2\nexit 1\n')
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + ":" + os.environ["PATH"])
@@ -245,3 +245,55 @@ def test_job_log_rotation_is_bounded_and_ordered(tmp_path):
     assert path.with_name("job.log.1").read_bytes() == b"22222222"
     assert path.with_name("job.log.2").read_bytes() == b"11111111"
     assert len(list(tmp_path.iterdir())) == 3
+
+
+def test_capture_uses_dumpcap_without_dissector_plugins(ctx, tmp_path, monkeypatch):
+    fake = tmp_path / "dumpcap"
+    fake.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + """
+import json,pathlib,signal,sys,time
+args=sys.argv[1:]
+output=pathlib.Path(args[args.index('-w')+1])
+output.write_bytes(b'capture-fixture')
+output.with_suffix('.argv.json').write_text(json.dumps(args))
+print('File: '+str(output),file=sys.stderr,flush=True)
+def stopped(*unused):
+    output.with_suffix('.stopped').write_text('finalized')
+    print('Packets captured: 1',file=sys.stderr,flush=True)
+    sys.exit(0)
+signal.signal(signal.SIGINT,stopped)
+while True: time.sleep(.01)
+"""
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path) + ":" + os.environ["PATH"])
+    ctx.capture = True
+    ctx.interface = "fixture0"
+    with packet_capture(ctx, "successful", "host 192.0.2.10") as path:
+        assert path.exists()
+        args = json.loads(path.with_suffix(".argv.json").read_text())
+        assert "-n" not in args
+        assert args[args.index("-f") + 1] == "host 192.0.2.10"
+        assert args[args.index("-i") + 1] == "fixture0"
+    assert path.with_suffix(".stopped").read_text() == "finalized"
+
+
+def test_preflight_capture_needs_dumpcap_not_tshark(ctx, monkeypatch):
+    from core.scanner import preflight
+    import core.scanner as scanner
+
+    ctx.capture = True
+    monkeypatch.setattr(
+        scanner.shutil,
+        "which",
+        lambda command: "/fixture/" + command if command in ("nmap", "dumpcap") else None,
+    )
+    preflight(["-sT"], ctx)
+    monkeypatch.setattr(
+        scanner.shutil, "which", lambda command: "/fixture/nmap" if command == "nmap" else None
+    )
+    with pytest.raises(ValueError, match="dumpcap is missing"):
+        preflight(["-sT"], ctx)

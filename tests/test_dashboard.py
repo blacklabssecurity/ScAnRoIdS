@@ -52,7 +52,7 @@ def test_authenticated_api_shows_host_only_inventory_and_specific_tactical_comma
     client = app.test_client()
     login(client)
     data = client.get("/api/state").json
-    assert len(data["hosts"]) == 3 and len(data["results"]) == 4
+    assert len(data["hosts"]) == 3 and len(data["results"]) == 5
     ssh = next(r for r in data["results"] if r["ip"] == "192.0.2.10" and r["port"] == 22)
     snmp = next(r for r in data["results"] if r["protocol"] == "udp")
     assert "ssh-hostkey" in ssh["suggestion"] and "-p 22" in ssh["suggestion"]

@@ -121,6 +121,7 @@ def nmap_to_bpf(targets):
 def dependencies():
     commands = (
         "nmap",
+        "dumpcap",
         "tshark",
         "ip",
         "gowitness",
@@ -133,6 +134,7 @@ def dependencies():
         "onesixtyone",
         "gobuster",
         "capinfos",
+        "tcpdump",
     )
     return {name: shutil.which(name) for name in commands}
 

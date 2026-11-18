@@ -11,6 +11,7 @@ import shutil
 from core.database import connect, event
 from core.runner import identifier, packet_capture, run_command
 from core.system import nmap_to_bpf
+from core.capture import capture_plan
 
 
 def services(ctx):
@@ -30,7 +31,18 @@ def execute(ctx, command, ip=None, timeout=300, cwd=None, display_command=None):
         print(f"[i] {tool} unavailable; skipped")
         return None
     stem = f"{tool}_{ctx.customer}_{identifier()}"
-    with packet_capture(ctx, stem, nmap_to_bpf(ip)) if ip else _no_capture():
+    interface, routes = capture_plan(ctx, ip) if ip and ctx.capture else (None, [])
+    with (
+        packet_capture(
+            ctx,
+            stem,
+            nmap_to_bpf(ip),
+            interface=interface,
+            metadata={"targets": ip, "routes": routes},
+        )
+        if ip
+        else _no_capture()
+    ):
         return run_command(
             ctx,
             command,

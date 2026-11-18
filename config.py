@@ -187,33 +187,43 @@ SCAN_LIBRARY = {
         local=True,
         discovery=True,
     ),
-    "40": profile("Top 1K Discovery", "-n -vv -sS --top-ports 1000"),
-    "41": profile("Windows Discovery", f"-n -vv -sT -p {get_p(WINDOWS_TCP_PORTS)}", root=False),
+    "40": profile("Top 1K Discovery", "-n -vv -sS --top-ports 1000", capture="discovery"),
+    "41": profile(
+        "Windows Discovery",
+        f"-n -vv -sT -p {get_p(WINDOWS_TCP_PORTS)}",
+        capture="discovery",
+        root=False,
+    ),
     "42": profile(
         "Linux Discovery",
         f"-n -vv -sT -p {get_p(LINUX_PORTS)} --script ssh-hostkey",
+        capture="discovery",
         scripts=["ssh-hostkey"],
         root=False,
     ),
     "43": profile(
         "Web Discovery",
         f"-n -vv -sT -p {get_p(WEB_PORTS)} --script http-title,http-headers,http-methods,http-enum",
+        capture="discovery",
         scripts=["http-title", "http-headers", "http-methods", "http-enum"],
         root=False,
     ),
     "44": profile(
         "Management Discovery",
         f"-n -vv -sS -sU -p T:{get_p(MGMT_TCP)},U:{get_p(MGMT_UDP)}",
+        capture="discovery",
     ),
     "45": profile(
         "Database Discovery",
         f"-n -vv -sT -p {get_p(DB_PORTS)} --script banner",
+        capture="discovery",
         scripts=["banner"],
         root=False,
     ),
     "46": profile(
         "SCADA/ICS Discovery",
         f"-n -vv -sS -sU -T2 --max-retries 1 -p T:{get_p(SCADA_TCP)},U:{get_p(SCADA_UDP)}",
+        capture="discovery",
     ),
     "50": profile(
         "Aggressive Audit",
@@ -228,13 +238,15 @@ SCAN_LIBRARY = {
     "52": profile("Kitchen Sink", "-Pn -n -vv -sS -p-", phase=2),
     "60": profile(
         "Auto-Zombie Hunter",
-        "-n -vv -O --script ipidseq -p 20-23,80,443,445,515,631,9100-9102",
+        "-n -vv -sS -p 80 --script ipidseq --script-args ipidseq.probeport=80",
         scripts=["ipidseq"],
+        capture="discovery",
     ),
     "61": profile(
         "Firewalk",
         "-Pn -n -vv -sS --traceroute --script firewalk",
         scripts=["firewalk"],
+        capture="firewalk",
     ),
     "70": profile("Ghost Scan", "-n -vv -sS -D RAND:10 --spoof-mac 0 -g 53"),
     "71": profile("Idle Scan", "-Pn -n -vv", capture="zombie"),
@@ -287,7 +299,7 @@ def get_banner():
     02. ACK Discovery ..........[N]: TCP ACK Ping (Stateless Firewall Check)
     03. Local ARP Discovery ....[N]: Layer 2 MAC Discovery-Local Subnet Only (Need [S]: arp -a)
     04. Reverse DNS Lookup .....[S]: Query Hostnames via Specific DNS Server
-    05. Zombie Idle Discover ...[S]: Blind Stealth Scan (Requires Zombie IP)
+    05. Zombie Idle Discover ...[S]: Blind Stealth Scan (Need Zombie? Try Scan 60)
 
  [ Inverse TCP DISCOVERY - HOST BUILDING ONLY (Non-Windows Targets Suggested) ]
     10. NULL Scan ..............[E]: Empty TCP Flags (-sN)
@@ -324,7 +336,7 @@ def get_banner():
     52. Kitchen Sink ...........[N]: All Ports -p-
 
  [ SPECIALIZED SCANS ]
-    60. Auto-Zombie Hunter .....[S]: Scan OS-Unknowns for Incremental IPID (Idle Scan Prep)
+    60. Auto-Zombie Hunter .....[N]: Scan OS-Unknowns for Incremental IPID (Idle Scan Prep)
     61. Firewalk Scan ..........[N]: TTL Analysis to Gateway
 
  [ EVASION & SPOOFING - PHASE 1 & PHASE 2 ]
