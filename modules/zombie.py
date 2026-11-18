@@ -6,6 +6,7 @@ Purpose: Recheck an idle-scan candidate without adding it to discovery/audit sco
 """
 
 from core.parser import xml_records
+from core.capture import capture_plan
 from core.runner import identifier, packet_capture, run_command
 
 
@@ -30,7 +31,10 @@ def validate_zombie(ctx, ip, port):
         str(output),
         ip,
     ]
-    with packet_capture(ctx, stem, f"host {ip}"):
+    interface, routes = capture_plan(ctx, [ip]) if ctx.capture else (None, [])
+    with packet_capture(
+        ctx, stem, f"host {ip}", interface=interface, metadata={"targets": [ip], "routes": routes}
+    ):
         result = run_command(ctx, command, tool="nmap", phase="zombie validation", timeout=45)
     if result["status"] != "completed":
         return False

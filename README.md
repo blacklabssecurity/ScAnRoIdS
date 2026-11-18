@@ -18,7 +18,7 @@ The setup script creates `.venv` beside the source and installs Python dependenc
 ## Start an instructor session
 
 ```bash
-sudo .venv/bin/python main.py --customer CourseLab --interface eth0
+sudo .venv/bin/python main.py --customer CourseLab --interface any
 ```
 
 The supplied scan menu is preserved. Select an ID and provide an IP, CIDR, IPv4 last-octet range, or `-iL /path/to/hosts.txt`. Discovery, auditing and optional tool offers stay in the terminal. The viewer listens on port 8888. Use the Kali machine's LAN address from other workstations.
@@ -54,7 +54,7 @@ Try the bundled synthetic evidence without scanning anything:
   --scan 40 --targets 192.0.2.0/28 --dry-run
 
 # Run one requested scan without prompts, then exit.
-sudo .venv/bin/python main.py --customer CourseLab --interface eth0 \
+sudo .venv/bin/python main.py --customer CourseLab --interface any \
   --scan 40 --targets 192.0.2.0/28 --non-interactive --exit-after
 
 # Audit discovered open ports in an existing session, then exit.
@@ -68,7 +68,7 @@ sudo .venv/bin/python main.py --resume /path/to/session --interface eth0 \
 
 Documentation ranges above are placeholders; substitute your training network. `--audit` continues discovery into an audit. `--include-industrial` explicitly includes discovered ICS ports; `--expand-all-ports` confirms scan 52's expanded scope. `--tools --greedy` runs applicable enumeration adapters automatically in batch mode. Custom phase-2 audit flags use `--scan 99 --phase 2 --flags '...'`.
 
-`--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Run `--help` for all options.
+`--no-capture` disables packet capture explicitly. `--no-dashboard` runs only the terminal workflow. `--host` and `--port` control the viewer listener. Routed scans capture on Linux `any` by default; `--interface any` selects it explicitly. If you select a physical capture interface, it must match the target route (`ip route get <target>`). Local ARP/multicast discovery requires a physical interface. Run `--help` for all options.
 
 ## Teaching and extension
 

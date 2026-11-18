@@ -105,7 +105,7 @@ def test_scope_bpf_supports_cidr_ranges_and_host_files(tmp_path):
 
 def test_capture_ports_keep_protocols_separate():
     result = capture_filter(
-        SCAN_LIBRARY["44"], ["192.0.2.10"], ["-sS", "-sU", "-p", "T:22,80,U:161,500"]
+        {"capture": "scope"}, ["192.0.2.10"], ["-sS", "-sU", "-p", "T:22,80,U:161,500"]
     )
     assert "tcp port 22" in result and "tcp port 80" in result
     assert "udp port 161" in result and "udp port 500" in result
@@ -259,10 +259,12 @@ args=sys.argv[1:]
 output=pathlib.Path(args[args.index('-w')+1])
 output.write_bytes(b'capture-fixture')
 output.with_suffix('.argv.json').write_text(json.dumps(args))
+print('File: '+str(output),file=sys.stderr,flush=True)
 def stopped(*unused):
     output.with_suffix('.stopped').write_text('finalized')
+    print('Packets captured: 1',file=sys.stderr,flush=True)
     sys.exit(0)
-signal.signal(signal.SIGTERM,stopped)
+signal.signal(signal.SIGINT,stopped)
 while True: time.sleep(.01)
 """
     )

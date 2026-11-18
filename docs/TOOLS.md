@@ -79,3 +79,11 @@ Use `dpkg -S '*falco-events.so'` to identify the owning package. Align the plugi
 The generated guide uses downloaded filenames. Download a PCAP through the authenticated dashboard into your own account and analyze that copy. Reading the original root-owned capture directly may produce `Permission denied`; running sudo fixes access only, not a plugin/library mismatch. Avoid running protocol analysis as root simply to read a saved file.
 
 If `capinfos` reports zero packets, there is nothing to decode regardless of display filter or plugin health. Check the scan target, capture interface and host filter. ScAnRoIdS still excludes local scanner IPs. Duplicate addresses between training VMs should be corrected in the lab network rather than disabling self-exclusion.
+
+## Multi-interface Kali VMs
+
+Check `ip -br addr` and `ip route get <target>`. For example, a target routed through eth1 cannot be captured by listening only on eth0. This also applies to Nmap TCP-connect and NSE/version connections, which use OS routing.
+
+For routed scans use `--interface any`, or select the actual routed interface. With no explicit interface, routed jobs now default to `any`. Explicit physical-interface mismatches detected from local routes stop the job before scanning. ARP/multicast/local discovery still requires the physical interface connected to that segment. Target filters and local-IP exclusions remain enabled.
+
+Capture startup waits for dumpcap readiness instead of assuming a fixed delay is sufficient. After a job, inspect its `_capture.json` and `_capture.log` in the dashboard artifacts. They record interface, filter, route evidence, packet count and shutdown status. `empty` or `unverified` is reported explicitly; a nonempty PCAPNG header is not treated as proof that any packets were collected.

@@ -44,3 +44,9 @@ Offline recipes are generated from analysis-tool readiness. A detected Falco/und
 Scan 60 is labeled [N] because candidate discovery actively probes hosts and includes OS detection. Scan 05 now points operators to Scan 60 when they need a candidate. IPID parsing accepts actual NSE output `Incremental!`, native `Incremental`, and the optional debug probe-port suffix. It does not accept `Broken incremental!` or unrelated substring matches. This shared parser fix applies both to hunter exports and the pre-idle-scan validation.
 
 Scan 60 still operates on the instructor-supplied scope; automatic OS-unknown selection, a terminal candidate picker and structured validation-failure reasons remain suggested workflow improvements, not completed behavior. Scan 05 still revalidates each selected candidate and retains its current open-probe-port requirement.
+
+## Capture routing mismatch correction
+
+A lab report confirmed successful Scan 42/50 traffic routed through eth1 while capture listened on eth0. Ordinary routed captures now default to Linux `any` within the existing target filter; explicit physical interface choices are checked against local routes. Local discovery keeps its physical NIC. Detailed discovery captures preserve target-scoped ARP, host discovery and service probes. Local-IP exclusions and target routing are unchanged.
+
+The capture runner now waits for file readiness, drains dumpcap with SIGINT, records route/interface/filter/count diagnostics in per-job JSON, and visibly reports empty/unverified captures. An empty required capture alongside confirmed open Nmap results is an operation failure, while retaining all valid scan results. Validation includes real libpcap execution against SSH/Linux packets on Ethernet, Linux SLL and SLL2 formats, plus route/lifecycle regression tests.

@@ -5,7 +5,7 @@ Module: main.py
 Purpose: Instructor terminal controller for sessions, scans, tools and LAN viewing.
 
 Quick start: .venv/bin/python main.py --doctor
-             sudo .venv/bin/python main.py --customer CourseLab --interface eth0
+             sudo .venv/bin/python main.py --customer CourseLab --interface any
 """
 
 import argparse
@@ -85,7 +85,10 @@ def arguments(argv=None):
     parser.add_argument(
         "--phase", type=int, choices=[1, 2], default=1, help="Phase for custom scan 99"
     )
-    parser.add_argument("--interface", help="Capture/scan interface; defaults to the default route")
+    parser.add_argument(
+        "--interface",
+        help="Capture interface (use any for routed scans); local discovery needs a physical NIC",
+    )
     parser.add_argument("--no-capture", action="store_true")
     parser.add_argument("--no-dashboard", action="store_true")
     parser.add_argument(
@@ -270,8 +273,8 @@ def prepare_profile(ctx, choice, args, targets):
     if ctx.proxy and choice in ("41", "42", "43", "45"):
         flags += " -Pn"
     if profile.get("local"):
-        if not ctx.interface:
-            raise ValueError("This discovery requires --interface")
+        if not ctx.interface or ctx.interface == "any":
+            raise ValueError("This local discovery requires a physical --interface")
         flags += " -e " + ctx.interface
         if choice == "20":
             targets = ["ff02::1"]
@@ -450,6 +453,7 @@ def run(args):
         ctx = ScanContext(ask("Customer / course name:"), root=args.data_dir)
     ctx.capture = not args.no_capture
     ctx.interface = args.interface or (None if args.view_only else get_default_interface())
+    ctx.interface_explicit = args.interface is not None
     ctx.greedy = args.greedy
     ctx.timeout = args.timeout
     ctx.proxy = args.proxychains
@@ -482,7 +486,11 @@ def run(args):
                 address = (
                     args.host
                     if args.host not in ("0.0.0.0", "::")
-                    else get_interface_ip(ctx.interface)
+                    else get_interface_ip(
+                        (get_default_interface() or "lo")
+                        if ctx.interface == "any"
+                        else ctx.interface
+                    )
                     if ctx.interface
                     else "127.0.0.1"
                 )

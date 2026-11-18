@@ -4,7 +4,7 @@ Validated in a Debian 13 execution environment using Python 3.12. Python 3.11 co
 
 ## Automated checks
 
-**77 tests passed**, including the optional checks below:
+**91 tests passed**, including the optional checks below:
 
 - Nmap XML and GNMAP import, IPv6 address selection, discovery-only hosts, missing TTL, explicit closed/open|filtered states, malformed XML fallback and unchanged state on failed import.
 - Repeated imports, history retention, legacy database backup/deduplication, session resumption, complete domain-controller port matching and sanitized service paths.
@@ -74,3 +74,9 @@ Browser checks for this update also passed for visible uncertainty/state/reason,
 ## Zombie classification compatibility
 
 Nine additional regression cases check actual NSE `Incremental!` output, native classification and debug suffixes, rejection of broken/non-incremental labels, candidate export, and pre-idle validation without adding the zombie to assessment targets. The synthetic fixture now uses the actual NSE punctuation. The local Nmap 7.95 ipidseq script was inspected to confirm its returned classification text. These tests do not claim a live end-to-end idle scan was performed.
+
+## Capture routing and readiness regression checks
+
+Eight additional checks cover explicit wrong-NIC rejection, correct-NIC and `any` selection, automatic multi-route capture, refusal to start a scan before dumpcap readiness, graceful SIGINT drain, empty-capture reports and preservation of confirmed Nmap results when required capture is empty. Six optional libpcap checks execute compiled BPF against constructed packet bytes on Ethernet, Linux cooked (SLL) and Linux cooked v2 (SLL2) link types. They verify bidirectional SSH, Linux service probes, host discovery/ARP, target containment and audit port scope.
+
+The root cause on the reported Kali VM was confirmed by its route output: target 192.168.159.129 used eth1/source 192.168.159.130 while dumpcap listened on eth0/192.168.59.128. This environment has no packet-capture capabilities, so live dumpcap collection still needs confirmation on Kali. Packet-level BPF validation here is offline; readiness/drain behavior uses controlled subprocesses. The existing localhost Nmap integration remains enabled in the 91-check validation run.

@@ -11,6 +11,7 @@ import shlex
 import shutil
 import subprocess
 from core.database import event, set_status
+from core.capture import capture_plan
 from core.parser import parse_results
 from core.planner import audit_plan, audit_flags
 from core.runner import identifier, packet_capture, run_command
@@ -168,6 +169,10 @@ def capture_filter(profile, targets, flags):
             raise ValueError("Idle scan requires -sI IPv4-zombie[:port]") from None
         return f"host {zombie}"
     scope = nmap_to_bpf(targets)
+    if mode == "discovery":
+        # Port discovery also sends ARP and host probes outside the selected
+        # service port list. Keep all target-scoped traffic for these profiles.
+        return scope
     if mode == "sctp":
         return f"{scope} and (sctp or icmp or icmp6)"
     ports = None
@@ -234,9 +239,25 @@ def deploy_scan(ctx, targets, scan_meta, phase_num, choice, flags=None):
             raise ValueError("Invalid proxy endpoint; use IP:port")
         bpf = f"host {host} and tcp port {port}"
 
+    interface, routes = (None, [])
+    if ctx.capture:
+        mode = scan_meta.get("capture", "scope")
+        capture_targets = targets
+        if mode == "zombie":
+            capture_targets = [args[args.index("-sI") + 1].split(":")[0]]
+        if proxy:
+            capture_targets = [host]
+        interface, routes = capture_plan(
+            ctx, capture_targets, local=bool(scan_meta.get("local")) or mode == "dns"
+        )
+        for route in routes:
+            event(ctx.db_path, "Route evidence: " + str(route))
     result = None
+    parsed_open = 0
     try:
-        with packet_capture(ctx, stem, bpf):
+        with packet_capture(
+            ctx, stem, bpf, interface=interface, metadata={"targets": targets, "routes": routes}
+        ):
             phase_label = f"{phase_num} / {kind}" + (
                 " · " + scan_meta["progress"] if scan_meta.get("progress") else ""
             )
@@ -247,12 +268,23 @@ def deploy_scan(ctx, targets, scan_meta, phase_num, choice, flags=None):
             ok, hosts, services = parse_results(
                 output.with_suffix(".xml"), output.with_suffix(".gnmap"), ctx
             )
+            parsed_open = services if ok else 0
             event(
                 ctx.db_path,
                 f"Imported {hosts} live hosts / {services} open services"
                 if ok
                 else "Scan artifacts could not be parsed",
             )
+    captured = getattr(ctx, "capture_result", None)
+    if captured and (
+        captured["status"] in ("failed", "startup_failed")
+        or (captured["status"] == "empty" and parsed_open > 0)
+    ):
+        event(
+            ctx.db_path,
+            "Nmap results retained, but required capture failed or captured zero packets despite confirmed open services.",
+        )
+        return False
     return bool(result and result["status"] == "completed")
 
 
