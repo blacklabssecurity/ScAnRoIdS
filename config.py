@@ -287,7 +287,7 @@ def get_banner():
     02. ACK Discovery ..........[N]: TCP ACK Ping (Stateless Firewall Check)
     03. Local ARP Discovery ....[N]: Layer 2 MAC Discovery-Local Subnet Only (Need [S]: arp -a)
     04. Reverse DNS Lookup .....[S]: Query Hostnames via Specific DNS Server
-    05. Zombie Idle Discover ...[S]: Blind Stealth Scan (Requires Zombie IP)
+    05. Zombie Idle Discover ...[S]: Blind Stealth Scan (Need Zombie? Try Scan 60)
 
  [ Inverse TCP DISCOVERY - HOST BUILDING ONLY (Non-Windows Targets Suggested) ]
     10. NULL Scan ..............[E]: Empty TCP Flags (-sN)
@@ -324,7 +324,7 @@ def get_banner():
     52. Kitchen Sink ...........[N]: All Ports -p-
 
  [ SPECIALIZED SCANS ]
-    60. Auto-Zombie Hunter .....[S]: Scan OS-Unknowns for Incremental IPID (Idle Scan Prep)
+    60. Auto-Zombie Hunter .....[N]: Scan OS-Unknowns for Incremental IPID (Idle Scan Prep)
     61. Firewalk Scan ..........[N]: TTL Analysis to Gateway
 
  [ EVASION & SPOOFING - PHASE 1 & PHASE 2 ]

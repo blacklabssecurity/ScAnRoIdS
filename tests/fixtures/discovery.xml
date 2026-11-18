@@ -8,7 +8,7 @@
 <port protocol="tcp" portid="443"><state state="closed" reason="reset" reason_ttl="62"/><service name="https"/></port>
 <port protocol="udp" portid="161"><state state="open" reason="udp-response" reason_ttl="62"/><service name="snmp"/></port>
 <port protocol="udp" portid="500"><state state="open|filtered" reason="no-response"/><service name="isakmp"/></port>
-</ports><os><osmatch name="Linux 6.x" accuracy="98"/><osmatch name="Unknown Unix" accuracy="80"/></os><distance value="2"/><trace><hop ttl="1" ipaddr="192.0.2.1"/><hop ttl="2" ipaddr="192.0.2.10"/></trace><hostscript><script id="ipidseq" output="Incremental"/></hostscript></host>
+</ports><os><osmatch name="Linux 6.x" accuracy="98"/><osmatch name="Unknown Unix" accuracy="80"/></os><distance value="2"/><trace><hop ttl="1" ipaddr="192.0.2.1"/><hop ttl="2" ipaddr="192.0.2.10"/></trace><hostscript><script id="ipidseq" output="Incremental!"/></hostscript></host>
 <host><status state="up" reason="arp-response" reason_ttl="0"/><address addr="192.0.2.11" addrtype="ipv4"/></host>
 <host><status state="up" reason="syn-ack" reason_ttl="64"/><address addr="00:11:22:33:44:55" addrtype="mac"/><address addr="2001:db8::10" addrtype="ipv6"/><ports><port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/><service name="ssh" product="OpenSSH" version="9.6"/></port></ports></host>
 <runstats><finished exit="success"/></runstats>

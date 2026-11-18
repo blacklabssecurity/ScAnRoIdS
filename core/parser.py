@@ -35,6 +35,18 @@ def os_guess(name, ttl):
     return "Network device/Unix (TTL estimate)"
 
 
+def incremental_ipid(value):
+    """Accept native and NSE classifications, including NSE punctuation/debug text.
+
+    Nmap ipidseq returns 'Incremental!'; a substring match would incorrectly
+    accept 'Broken incremental!', which is a different sequence classification.
+    """
+    return (
+        re.fullmatch(r"incremental!?(?:\s+\[used port \d+\])?", value.strip(), re.IGNORECASE)
+        is not None
+    )
+
+
 def service_slug(value):
     return re.sub(r"[^A-Za-z0-9_-]", "_", value or "unknown")[:80] or "unknown"
 
@@ -212,7 +224,7 @@ def xml_records(path):
             for s in host.findall("hostscript/script")
             if s.get("id") == "ipidseq"
         ]
-        record["zombies"] = [s for s in candidates if s.lower().strip() == "incremental"]
+        record["zombies"] = [s for s in candidates if incremental_ipid(s)]
         records.append(record)
     return records
 

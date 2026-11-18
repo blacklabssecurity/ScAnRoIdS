@@ -4,7 +4,7 @@ Validated in a Debian 13 execution environment using Python 3.12. Python 3.11 co
 
 ## Automated checks
 
-**68 tests passed**, including the optional checks below:
+**77 tests passed**, including the optional checks below:
 
 - Nmap XML and GNMAP import, IPv6 address selection, discovery-only hosts, missing TTL, explicit closed/open|filtered states, malformed XML fallback and unchanged state on failed import.
 - Repeated imports, history retention, legacy database backup/deduplication, session resumption, complete domain-controller port matching and sanitized service paths.
@@ -70,3 +70,7 @@ For first acceptance on Kali, run one small lab subnet through discovery → ins
 Additional tests verify uncertain states are visible without inflating confirmed-open totals or entering automatic audit/tool scope; exact grouped XML ports and single-summary complements; refusal to invent ports from ambiguous counts; legacy import enrichment without overwriting newer state; plugin startup errors with exit code zero; healthy startup; permission/zero-packet guide text; and skipping unhealthy Tshark analysis in favor of available alternatives.
 
 Browser checks for this update also passed for visible uncertainty/state/reason, unchanged confirmed-open counts, persistence of the state filter, no host-list link for unconfirmed services, withheld Tshark recipes under a simulated plugin failure, an available tcpdump alternative, and mobile layout without page overflow. No JavaScript page errors were observed.
+
+## Zombie classification compatibility
+
+Nine additional regression cases check actual NSE `Incremental!` output, native classification and debug suffixes, rejection of broken/non-incremental labels, candidate export, and pre-idle validation without adding the zombie to assessment targets. The synthetic fixture now uses the actual NSE punctuation. The local Nmap 7.95 ipidseq script was inspected to confirm its returned classification text. These tests do not claim a live end-to-end idle scan was performed.

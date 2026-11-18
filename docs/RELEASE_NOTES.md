@@ -38,3 +38,9 @@ Live capture now invokes `dumpcap` directly, rather than `tshark`. This avoids l
 The viewer now shows uncertain Nmap states alongside confirmed open ports, with separate counts, state/reason fields, filtering and verification-only copy commands. Exact grouped port evidence in XML is recovered where possible; counts alone do not become invented port IDs. Automatic service enumeration remains restricted to confirmed open ports. Local-IP detection and --exclude behavior are unchanged.
 
 Offline recipes are generated from analysis-tool readiness. A detected Falco/undefined-symbol startup error withholds Tshark commands while capinfos and optional tcpdump remain available. The guide is refreshed on resume, uses downloaded filenames, and explains root-owned file access and zero-packet captures. This does not automatically repair or modify operating-system packages.
+
+## Zombie menu labels and IPID compatibility
+
+Scan 60 is labeled [N] because candidate discovery actively probes hosts and includes OS detection. Scan 05 now points operators to Scan 60 when they need a candidate. IPID parsing accepts actual NSE output `Incremental!`, native `Incremental`, and the optional debug probe-port suffix. It does not accept `Broken incremental!` or unrelated substring matches. This shared parser fix applies both to hunter exports and the pre-idle-scan validation.
+
+Scan 60 still operates on the instructor-supplied scope; automatic OS-unknown selection, a terminal candidate picker and structured validation-failure reasons remain suggested workflow improvements, not completed behavior. Scan 05 still revalidates each selected candidate and retains its current open-probe-port requirement.
